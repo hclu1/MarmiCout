@@ -30,6 +30,8 @@ import { dbService } from './services/db';
 
 type Tab = 'Dashboard' | 'Produits' | 'Achats' | 'Recettes' | 'Production' | 'Ventes' | 'Magasins' | 'Paramètres';
 
+const APP_VERSION = '1.2.0';
+
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('Dashboard');
   const [tabExtraData, setTabExtraData] = useState<any>(null);
@@ -166,7 +168,7 @@ function App() {
 
         <div className="sidebar-footer">
           <div>{currentSettings.businessName}</div>
-          <div style={{ fontSize: '11px', color: 'var(--color-dark-light)', marginTop: '2px' }}>MarmiCout V.1.2</div>
+          <div style={{ fontSize: '11px', color: 'var(--color-dark-light)', marginTop: '2px' }}>MarmiCout V.{APP_VERSION}</div>
         </div>
       </aside>
 
@@ -210,7 +212,7 @@ function App() {
           marginTop: '40px'
         }}>
           <div>© {new Date().getFullYear()} MarmiCout — Logiciel de gestion Traiteur & Plats Cuisinés</div>
-          <div style={{ marginTop: '4px', fontWeight: 'bold' }}>Version V.1.1</div>
+          <div style={{ marginTop: '4px', fontWeight: 'bold' }}>Version V.{APP_VERSION}</div>
         </footer>
       </main>
 
