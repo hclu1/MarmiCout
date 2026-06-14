@@ -111,4 +111,5 @@ export interface Settings {
   defaultMinStockAlert: number;
   googleSheetId?: string;
   googleSheetLink?: string;
+  googleWebAppUrl?: string;
 }

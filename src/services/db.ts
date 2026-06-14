@@ -157,7 +157,8 @@ const INITIAL_SETTINGS: Settings = {
   salesLocations: ['Marché', 'Commande', 'En Ligne', 'Domicile', 'Autre'],
   defaultMinStockAlert: 2,
   googleSheetId: '1SU8ypH5aufwKVoZLlCfhcw6nwdS6nBwNDvj8hKr0F2k',
-  googleSheetLink: 'https://docs.google.com/spreadsheets/d/1SU8ypH5aufwKVoZLlCfhcw6nwdS6nBwNDvj8hKr0F2k/edit?usp=sharing'
+  googleSheetLink: 'https://docs.google.com/spreadsheets/d/1SU8ypH5aufwKVoZLlCfhcw6nwdS6nBwNDvj8hKr0F2k/edit?usp=sharing',
+  googleWebAppUrl: ''
 };
 
 // --- INITIALISATION DU LOCALSTORAGE ---
