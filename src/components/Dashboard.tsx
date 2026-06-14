@@ -81,10 +81,66 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">Tableau de bord</h1>
-          <p className="page-subtitle">Aperçu de votre activité culinaire chez <strong>{settings.businessName}</strong></p>
+      {/* SECTION ACCUEIL HERO BANNER - SPÉCIALITÉ PLATS CUISINÉS */}
+      <div className="card" style={{ 
+        padding: 0, 
+        overflow: 'hidden', 
+        marginBottom: '28px', 
+        border: 'none', 
+        boxShadow: 'var(--shadow-md)',
+        borderRadius: 'var(--radius-md)'
+      }}>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          backgroundColor: 'var(--color-dark)',
+          color: '#fff',
+        }}>
+          <div style={{ 
+            flex: '1 1 360px', 
+            padding: '32px 28px', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            justifyContent: 'center', 
+            gap: '12px' 
+          }}>
+            <span className="badge" style={{ 
+              backgroundColor: 'rgba(255, 255, 255, 0.1)', 
+              color: 'var(--color-secondary-light)', 
+              fontWeight: '700', 
+              fontSize: '10px',
+              width: 'fit-content',
+              padding: '4px 10px',
+              textTransform: 'uppercase',
+              letterSpacing: '1px'
+            }}>
+              MarmiCout — Traiteur & Plats Cuisinés
+            </span>
+            <h1 style={{ 
+              fontSize: '26px', 
+              fontWeight: '800', 
+              lineHeight: '1.25', 
+              color: 'var(--color-white)',
+              margin: 0 
+            }}>
+              Pilotez la rentabilité de votre activité culinaire
+            </h1>
+            <p style={{ 
+              fontSize: '13px', 
+              color: 'rgba(255, 255, 255, 0.75)', 
+              lineHeight: '1.5',
+              margin: 0,
+              maxWidth: '480px'
+            }}>
+              Calculez précisément vos coûts de revient, optimisez les stocks de vos ingrédients (portions individuelles, familiales) et maximisez vos bénéfices lors de vos séances de cuisine et de vos ventes.
+            </p>
+          </div>
+          <div style={{ 
+            flex: '1 1 200px',
+            minHeight: '200px', 
+            background: 'url(/cooked_dishes_banner.png) center/cover no-repeat'
+          }} />
         </div>
       </div>
 

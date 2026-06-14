@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Compass, Shuffle, ArrowLeft, Download, Check, ExternalLink, RefreshCw, AlertCircle } from 'lucide-react';
 import { Recipe, RecipeIngredient } from '../types';
-import { recipeImportService, mapTheMealDBToRecipe } from '../services/recipeImportService';
+import { 
+  recipeImportService, 
+  mapTheMealDBToRecipe, 
+  translateAreaToFrench, 
+  translateCategoryFilterToFrench,
+  translateText,
+  translateIngredients
+} from '../services/recipeImportService';
 
 interface RecipeImporterProps {
   onClose: () => void;
@@ -23,6 +30,7 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
   // Aperçu de recette sélectionnée
   const [selectedMealDetail, setSelectedMealDetail] = useState<any | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
 
   // Charger les filtres au démarrage
   useEffect(() => {
@@ -60,12 +68,15 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
   };
 
   const handleCategoryFilter = async (category: string) => {
-    if (!category) return;
+    setSelectedCategory(category);
+    setSelectedArea('');
+    setSelectedMealDetail(null);
+    if (!category) {
+      handleSearch(searchQuery || 'Chicken');
+      return;
+    }
     setIsLoading(true);
     setError(null);
-    setSelectedMealDetail(null);
-    setSelectedArea('');
-    setSelectedCategory(category);
     setSearchQuery('');
     try {
       const results = await recipeImportService.filterByCategory(category);
@@ -85,12 +96,15 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
   };
 
   const handleAreaFilter = async (area: string) => {
-    if (!area) return;
+    setSelectedArea(area);
+    setSelectedCategory('');
+    setSelectedMealDetail(null);
+    if (!area) {
+      handleSearch(searchQuery || 'Chicken');
+      return;
+    }
     setIsLoading(true);
     setError(null);
-    setSelectedMealDetail(null);
-    setSelectedCategory('');
-    setSelectedArea(area);
     setSearchQuery('');
     try {
       const results = await recipeImportService.filterByArea(area);
@@ -139,10 +153,46 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
     }
   };
 
-  const handleImportSubmit = () => {
+  const handleImportSubmit = async () => {
     if (!selectedMealDetail) return;
-    const mapped = mapTheMealDBToRecipe(selectedMealDetail);
-    onImport(mapped.recipe, mapped.ingredients);
+    setIsTranslating(true);
+    try {
+      const mapped = mapTheMealDBToRecipe(selectedMealDetail);
+
+      // Traduction en parallèle des champs principaux et des ingrédients
+      const [
+        translatedName,
+        translatedDescription,
+        translatedInstructions,
+        translatedIngredientsList
+      ] = await Promise.all([
+        translateText(mapped.recipe.name),
+        translateText(mapped.recipe.description),
+        translateText(mapped.recipe.instructions || ''),
+        translateIngredients(mapped.ingredients)
+      ]);
+
+      const translatedArea = translateAreaToFrench(selectedMealDetail.strArea || '');
+      const finalNotes = `Catégorie originale : ${selectedMealDetail.strCategory || 'N/A'}\nCuisine : ${translatedArea}\n\nRecette importée et traduite en français.`;
+
+      const translatedRecipe: Recipe = {
+        ...mapped.recipe,
+        name: translatedName,
+        description: translatedDescription,
+        instructions: translatedInstructions,
+        notes: finalNotes,
+        rawExtractedText: `Recette importée depuis TheMealDB.\nOrigine : ${translatedArea}\nYouTube : ${mapped.recipe.videoUrl || 'Aucun'}\nSite web : ${mapped.recipe.sourceUrl || 'Aucun'}`
+      };
+
+      onImport(translatedRecipe, translatedIngredientsList);
+    } catch (err) {
+      console.error("Erreur lors de la traduction de la recette:", err);
+      // Fallback en cas d'erreur de traduction : importer la version non-traduite
+      const mapped = mapTheMealDBToRecipe(selectedMealDetail);
+      onImport(mapped.recipe, mapped.ingredients);
+    } finally {
+      setIsTranslating(false);
+    }
   };
 
   // Détection de doublons dans la base locale existante
@@ -216,9 +266,12 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
                 onChange={(e) => handleCategoryFilter(e.target.value)}
               >
                 <option value="">-- Choisir une catégorie --</option>
-                {categories.map((c: any) => (
-                  <option key={c.idCategory} value={c.strCategory}>{c.strCategory}</option>
-                ))}
+                {[...categories]
+                  .sort((a, b) => translateCategoryFilterToFrench(a.strCategory).localeCompare(translateCategoryFilterToFrench(b.strCategory)))
+                  .map((c: any) => (
+                    <option key={c.idCategory} value={c.strCategory}>{translateCategoryFilterToFrench(c.strCategory)}</option>
+                  ))
+                }
               </select>
             </div>
 
@@ -231,9 +284,12 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
                 onChange={(e) => handleAreaFilter(e.target.value)}
               >
                 <option value="">-- Choisir une origine --</option>
-                {areas.map((a: string) => (
-                  <option key={a} value={a}>{a}</option>
-                ))}
+                {[...areas]
+                  .sort((a, b) => translateAreaToFrench(a).localeCompare(translateAreaToFrench(b)))
+                  .map((a: string) => (
+                    <option key={a} value={a}>{translateAreaToFrench(a)}</option>
+                  ))
+                }
               </select>
             </div>
           </div>
@@ -299,10 +355,10 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
                       <h4 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '4px', color: 'var(--color-dark)' }}>{meal.strMeal}</h4>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                         {meal.strCategory && meal.strCategory !== 'N/A' && (
-                          <span className="badge badge-info" style={{ fontSize: '10px', padding: '2px 6px' }}>{meal.strCategory}</span>
+                          <span className="badge badge-info" style={{ fontSize: '10px', padding: '2px 6px' }}>{translateCategoryFilterToFrench(meal.strCategory)}</span>
                         )}
                         {meal.strArea && meal.strArea !== 'N/A' && (
-                          <span className="badge" style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: 'var(--color-light)', color: 'var(--color-dark)' }}>{meal.strArea}</span>
+                          <span className="badge" style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: 'var(--color-light)', color: 'var(--color-dark)' }}>{translateAreaToFrench(meal.strArea)}</span>
                         )}
                       </div>
                     </div>
@@ -335,8 +391,8 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
                 
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '4px' }}>
-                    <span className="badge badge-info" style={{ fontSize: '11px' }}>{selectedMealDetail.strCategory}</span>
-                    <span style={{ fontSize: '11px', color: 'var(--color-dark-light)' }}>Origine : {selectedMealDetail.strArea}</span>
+                    <span className="badge badge-info" style={{ fontSize: '11px' }}>{translateCategoryFilterToFrench(selectedMealDetail.strCategory)}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--color-dark-light)' }}>Origine : {translateAreaToFrench(selectedMealDetail.strArea)}</span>
                   </div>
                   <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--color-dark)' }}>{selectedMealDetail.strMeal}</h3>
                 </div>
@@ -398,15 +454,27 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
                 </div>
 
                 {/* Bouton d'action */}
-                <button 
-                  type="button" 
-                  className="btn btn-success" 
-                  style={{ width: '100%', height: '44px', marginTop: '8px' }}
-                  onClick={handleImportSubmit}
-                >
-                  <Download size={16} style={{ marginRight: '6px' }} />
-                  Importer et ajuster la recette
-                </button>
+                {isTranslating ? (
+                  <button 
+                    type="button" 
+                    className="btn btn-success" 
+                    style={{ width: '100%', height: '44px', marginTop: '8px', opacity: 0.8, cursor: 'not-allowed' }}
+                    disabled={true}
+                  >
+                    <RefreshCw size={16} className="spin" style={{ marginRight: '6px', animation: 'spin 1.5s linear infinite' }} />
+                    Traduction en français...
+                  </button>
+                ) : (
+                  <button 
+                    type="button" 
+                    className="btn btn-success" 
+                    style={{ width: '100%', height: '44px', marginTop: '8px' }}
+                    onClick={handleImportSubmit}
+                  >
+                    <Download size={16} style={{ marginRight: '6px' }} />
+                    Importer et ajuster la recette
+                  </button>
+                )}
               </div>
             ) : (
               <div className="card" style={{ textAlign: 'center', padding: '48px 24px', border: '2px dashed var(--color-border)', color: 'var(--color-dark-light)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px' }}>

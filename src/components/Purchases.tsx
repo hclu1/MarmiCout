@@ -11,6 +11,7 @@ import { dbService } from '../services/db';
 import { Product, Purchase, Store } from '../types';
 import { Drawer } from './Drawer';
 import { BarcodeScanner } from './BarcodeScanner';
+import { LookupResult } from '../services/barcodeLookupService';
 
 interface PurchasesProps {
   initialTriggerScan?: boolean;
@@ -44,6 +45,8 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
   const [quickName, setQuickName] = useState('');
   const [quickCategory, setQuickCategory] = useState(settings.categories[0] || '');
   const [quickUnit, setQuickUnit] = useState(settings.units[0] || 'kg');
+  const [quickBrand, setQuickBrand] = useState('');
+  const [quickFormat, setQuickFormat] = useState('Unité');
 
   const loadData = () => {
     setPurchases(dbService.getPurchases().sort((a, b) => b.date.localeCompare(a.date)));
@@ -96,25 +99,48 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
     setIsFormOpen(true);
   };
 
-  // Traiter un scan de code-barres
-  const handleBarcodeScanned = (barcode: string) => {
+  // Traiter un scan de code-barres avec recherche locale et externe
+  const handleBarcodeScanned = (barcode: string, result: LookupResult) => {
     setIsScannerOpen(false);
     
-    // Rechercher si le produit existe
-    const matchedProduct = dbService.getProductByBarcode(barcode);
-    if (matchedProduct) {
-      setFormProductId(matchedProduct.id);
-      setFormUnit(matchedProduct.unit);
-      if (matchedProduct.mainStoreId) {
-        setFormStoreId(matchedProduct.mainStoreId);
+    // Rechercher si le produit existe localement
+    if (result.state === 'local_found' && result.localProduct) {
+      setFormProductId(result.localProduct.id);
+      setFormUnit(result.localProduct.unit);
+      if (result.localProduct.mainStoreId) {
+        setFormStoreId(result.localProduct.mainStoreId);
       }
+    } else if (result.state === 'external_found' && result.externalProduct) {
+      // Produit trouvé à l'externe : préremplir le Drawer de création rapide
+      setQuickBarcode(result.externalProduct.barcode);
+      setQuickName(result.externalProduct.name);
+      setQuickBrand(result.externalProduct.brand);
+      setQuickFormat(result.externalProduct.format);
+      
+      // Mappage flou de la catégorie
+      let category = settings.categories[0] || '';
+      if (result.externalProduct.category) {
+        const extCat = result.externalProduct.category.toLowerCase();
+        const matched = settings.categories.find(c => 
+          extCat.includes(c.toLowerCase()) || c.toLowerCase().includes(extCat)
+        );
+        if (matched) category = matched;
+      }
+      setQuickCategory(category);
+      setQuickUnit(settings.units[0] || 'kg');
+      setIsQuickProductOpen(true);
     } else {
-      // Produit inconnu, ouvrir la création rapide
+      // Produit non répertorié ou erreur réseau : préremplir uniquement le code-barres
       setQuickBarcode(barcode);
       setQuickName('');
+      setQuickBrand('');
+      setQuickFormat('Unité');
       setQuickCategory(settings.categories[0] || '');
       setQuickUnit(settings.units[0] || 'kg');
       setIsQuickProductOpen(true);
+      if (result.state === 'error' && result.error) {
+        alert(result.error);
+      }
     }
   };
 
@@ -129,13 +155,13 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
       name: quickName.trim(),
       category: quickCategory,
       unit: quickUnit,
-      brand: '',
-      format: 'Unité',
+      brand: quickBrand.trim(),
+      format: quickFormat.trim(),
       stock: 0,
       minStockAlert: settings.defaultMinStockAlert,
       avgPurchasePrice: 0,
       mainStoreId: formStoreId || (stores[0]?.id || ''),
-      notes: 'Créé rapidement via achat scanner',
+      notes: 'Créé via scan rapide code-barres',
       isActive: true
     };
 
@@ -471,6 +497,30 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
               value={quickName}
               onChange={(e) => setQuickName(e.target.value)}
             />
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Marque</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Ex: Lu, Francine"
+                value={quickBrand}
+                onChange={(e) => setQuickBrand(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Format / Conditionnement</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Ex: Bouteille 75cl, Paquet 1kg"
+                value={quickFormat}
+                onChange={(e) => setQuickFormat(e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="form-row">

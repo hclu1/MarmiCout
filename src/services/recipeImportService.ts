@@ -86,6 +86,203 @@ function translateSuffix(suffix: string): string {
   return suffix; // Garde tel quel si inconnu
 }
 
+export const AREA_TRANSLATIONS: Record<string, string> = {
+  'american': 'Américain',
+  'british': 'Britannique',
+  'canadian': 'Canadien',
+  'chinese': 'Chinois',
+  'croatian': 'Croate',
+  'dutch': 'Néerlandais',
+  'egyptian': 'Égyptien',
+  'filipino': 'Philippin',
+  'french': 'Français',
+  'greek': 'Grec',
+  'indian': 'Indien',
+  'irish': 'Irlandais',
+  'italian': 'Italien',
+  'jamaican': 'Jamaïcain',
+  'japanese': 'Japonais',
+  'kenyan': 'Kényan',
+  'malaysian': 'Malaisien',
+  'mexican': 'Mexicain',
+  'moroccan': 'Marocain',
+  'polish': 'Polonais',
+  'portuguese': 'Portugais',
+  'russian': 'Russe',
+  'spanish': 'Espagnol',
+  'thai': 'Thaïlandais',
+  'tunisian': 'Tunisien',
+  'turkish': 'Turc',
+  'unknown': 'Inconnu',
+  'vietnamese': 'Vietnamien'
+};
+
+export function translateAreaToFrench(area: string): string {
+  if (!area) return '';
+  const key = area.toLowerCase().trim();
+  return AREA_TRANSLATIONS[key] || area;
+}
+
+export const CATEGORY_TRANSLATIONS: Record<string, string> = {
+  'beef': 'Bœuf',
+  'chicken': 'Poulet',
+  'dessert': 'Dessert',
+  'lamb': 'Agneau',
+  'miscellaneous': 'Divers',
+  'pasta': 'Pâtes',
+  'pork': 'Porc',
+  'seafood': 'Fruits de mer',
+  'side': 'Accompagnement',
+  'starter': 'Entrée',
+  'vegan': 'Végétalien',
+  'vegetarian': 'Végétarien',
+  'goat': 'Chèvre',
+  'breakfast': 'Petit Déjeuner'
+};
+
+export function translateCategoryFilterToFrench(category: string): string {
+  if (!category) return '';
+  const key = category.toLowerCase().trim();
+  return CATEGORY_TRANSLATIONS[key] || category;
+}
+
+export function translateCategoryToFrench(category: string): string {
+  const cat = category.toLowerCase().trim();
+  if (['beef', 'chicken', 'pork', 'lamb', 'goat', 'pasta', 'seafood', 'vegetarian', 'vegan', 'side', 'starter', 'breakfast'].includes(cat)) {
+    return 'Plat Cuisiné';
+  }
+  if (cat === 'dessert') {
+    return 'Gâteau';
+  }
+  return 'Autre';
+}
+
+function chunkText(text: string, maxChunkSize: number = 400): string[] {
+  const paragraphs = text.split('\n');
+  const chunks: string[] = [];
+  let currentChunk = '';
+
+  for (const para of paragraphs) {
+    if (!para.trim()) {
+      if (currentChunk) {
+        chunks.push(currentChunk);
+        currentChunk = '';
+      }
+      chunks.push('');
+      continue;
+    }
+
+    if (para.length > maxChunkSize) {
+      if (currentChunk) {
+        chunks.push(currentChunk);
+        currentChunk = '';
+      }
+      
+      const sentences = para.match(/[^.!?]+[.!?]+(\s|$)/g) || [para];
+      for (const sentence of sentences) {
+        if (sentence.length > maxChunkSize) {
+          const words = sentence.split(' ');
+          let wordChunk = '';
+          for (const word of words) {
+            if ((wordChunk + ' ' + word).length > maxChunkSize) {
+              chunks.push(wordChunk.trim());
+              wordChunk = word;
+            } else {
+              wordChunk = wordChunk ? wordChunk + ' ' + word : word;
+            }
+          }
+          if (wordChunk) {
+            currentChunk = wordChunk;
+          }
+        } else {
+          if ((currentChunk + ' ' + sentence).length > maxChunkSize) {
+            chunks.push(currentChunk.trim());
+            currentChunk = sentence;
+          } else {
+            currentChunk = currentChunk ? currentChunk + ' ' + sentence : sentence;
+          }
+        }
+      }
+    } else {
+      if ((currentChunk + '\n' + para).length > maxChunkSize) {
+        if (currentChunk) {
+          chunks.push(currentChunk.trim());
+        }
+        currentChunk = para;
+      } else {
+        currentChunk = currentChunk ? currentChunk + '\n' + para : para;
+      }
+    }
+  }
+
+  if (currentChunk) {
+    chunks.push(currentChunk.trim());
+  }
+
+  return chunks;
+}
+
+export async function translateText(text: string): Promise<string> {
+  if (!text || !text.trim()) return text;
+  
+  const chunks = chunkText(text, 400);
+  const translatedChunks = await Promise.all(
+    chunks.map(async (chunk) => {
+      if (!chunk.trim()) return chunk;
+      try {
+        const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=en|fr&de=marmicout-app@gmail.com`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+        const data = await res.json();
+        if (data.responseData && data.responseData.translatedText) {
+          return data.responseData.translatedText;
+        }
+        return chunk;
+      } catch (err) {
+        console.warn(`Translation failed for chunk: "${chunk}"`, err);
+        return chunk;
+      }
+    })
+  );
+  
+  return translatedChunks.join('\n');
+}
+
+export async function translateIngredients(ingredients: Omit<RecipeIngredient, 'id' | 'recipeId'>[]): Promise<Omit<RecipeIngredient, 'id' | 'recipeId'>[]> {
+  if (ingredients.length === 0) return ingredients;
+  
+  const names = ingredients.map(ing => ing.customName || '');
+  const joinedNames = names.join(' | ');
+  
+  try {
+    const translatedJoined = await translateText(joinedNames);
+    const splitNames = translatedJoined.split(/\s*\|\s*/);
+    
+    if (splitNames.length === ingredients.length) {
+      return ingredients.map((ing, idx) => ({
+        ...ing,
+        customName: splitNames[idx].trim()
+      }));
+    } else {
+      console.warn("Batch ingredient translation length mismatch. Translating individually...");
+      const translatedList = await Promise.all(
+        ingredients.map(async (ing) => {
+          if (!ing.customName) return ing;
+          const translatedName = await translateText(ing.customName);
+          return {
+            ...ing,
+            customName: translatedName.trim()
+          };
+        })
+      );
+      return translatedList;
+    }
+  } catch (err) {
+    console.error("Failed to translate ingredients:", err);
+    return ingredients;
+  }
+}
+
 /**
  * Transforme le modèle brut TheMealDB vers le format interne de l'application
  */
@@ -95,23 +292,23 @@ export function mapTheMealDBToRecipe(meal: any): MappedRecipeResult {
   const recipe: Recipe = {
     id: recipeId,
     name: meal.strMeal.trim(),
-    category: meal.strCategory || 'Autre',
+    category: translateCategoryToFrench(meal.strCategory || 'Autre'),
     description: meal.strInstructions 
-      ? `Recette d'origine ${meal.strArea || 'internationale'}. ${meal.strInstructions.substring(0, 120)}...`
-      : `Recette d'origine ${meal.strArea || 'internationale'}.`,
+      ? `Recette d'origine ${translateAreaToFrench(meal.strArea) || 'internationale'}. ${meal.strInstructions.substring(0, 120)}...`
+      : `Recette d'origine ${translateAreaToFrench(meal.strArea) || 'internationale'}.`,
     portions: 4, // Rendement standard par défaut
     yieldQty: 1,
     yieldUnit: 'pièce',
     stock: 0,
     prepTimeMinutes: 30, // Estimation par défaut
-    notes: `Catégorie originale : ${meal.strCategory || 'N/A'}\nCuisine : ${meal.strArea || 'N/A'}`,
+    notes: `Catégorie originale : ${meal.strCategory || 'N/A'}\nCuisine : ${translateAreaToFrench(meal.strArea) || 'N/A'}`,
     isActive: true,
     photo: meal.strMealThumb || undefined,
     sourceImage: meal.strMealThumb || undefined,
     externalId: meal.idMeal,
     videoUrl: meal.strYoutube || undefined,
     sourceUrl: meal.strSource || undefined,
-    rawExtractedText: `Recette importée depuis TheMealDB.\nOrigine : ${meal.strArea}\nYouTube : ${meal.strYoutube || 'Aucun'}\nSite web : ${meal.strSource || 'Aucun'}`
+    rawExtractedText: `Recette importée depuis TheMealDB.\nOrigine : ${translateAreaToFrench(meal.strArea)}\nYouTube : ${meal.strYoutube || 'Aucun'}\nSite web : ${meal.strSource || 'Aucun'}`
   };
 
   const ingredients: Omit<RecipeIngredient, 'id' | 'recipeId'>[] = [];

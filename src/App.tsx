@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { 
-  LayoutDashboard, 
-  Package, 
-  ShoppingCart, 
-  ChefHat, 
-  Sparkles, 
-  DollarSign, 
-  Store, 
+import {
+  LayoutDashboard,
+  Package,
+  ShoppingCart,
+  ChefHat,
+  Sparkles,
+  DollarSign,
+  Store,
   Settings as SettingsIcon,
   AlertTriangle,
   Plus,
@@ -83,27 +83,27 @@ function App() {
   // Rendu de la vue active
   const renderActiveView = () => {
     const extra = tabExtraData;
-    
+
     switch (activeTab) {
       case 'Dashboard':
         return <Dashboard onNavigate={handleNavigate} />;
       case 'Produits':
         return (
-          <Products 
-            initialTriggerAdd={extra?.triggerAdd} 
+          <Products
+            initialTriggerAdd={extra?.triggerAdd}
             onNavigate={handleNavigate}
           />
         );
       case 'Achats':
         return (
-          <Purchases 
+          <Purchases
             initialTriggerScan={extra?.triggerScan}
             initialPrefillProductId={extra?.prefillProductId}
           />
         );
       case 'Recettes':
         return (
-          <Recipes 
+          <Recipes
             initialTriggerAdd={extra?.triggerAdd}
             initialViewRecipeId={extra?.viewRecipeId}
           />
@@ -125,7 +125,7 @@ function App() {
 
   return (
     <div className="app-container">
-      
+
       {/* --- SIDEBAR LATÉRALE (PC / TABLETTE HORIZONTALE) --- */}
       <aside className="sidebar">
         <div className="sidebar-header">
@@ -139,11 +139,11 @@ function App() {
               const IconComponent = item.icon;
               const isActive = activeTab === item.id;
               const badgeVal = item.badge ? item.badge() : undefined;
-              
+
               return (
                 <li key={item.id} className="menu-item">
-                  <a 
-                    href={`#${item.id}`} 
+                  <a
+                    href={`#${item.id}`}
                     className={`menu-link ${isActive ? 'active' : ''}`}
                     onClick={(e) => {
                       e.preventDefault();
@@ -166,27 +166,27 @@ function App() {
 
         <div className="sidebar-footer">
           <div>{currentSettings.businessName}</div>
-          <div style={{ fontSize: '11px', color: 'var(--color-dark-light)', marginTop: '2px' }}>MarmiCout v1.0.0</div>
+          <div style={{ fontSize: '11px', color: 'var(--color-dark-light)', marginTop: '2px' }}>MarmiCout V.1.2</div>
         </div>
       </aside>
 
       {/* --- HEADER GLOBAL (MOBILE SENSITIVE) --- */}
       <main className="main-content">
-        
+
         {/* Avertissement de stock faible persistant dans le header mobile */}
         {lowStockCount > 0 && activeTab !== 'Produits' && (
-          <div 
+          <div
             onClick={() => handleNavigate('Produits')}
-            style={{ 
-              backgroundColor: 'var(--color-danger-light)', 
-              color: 'var(--color-danger)', 
-              padding: '10px 16px', 
-              borderRadius: 'var(--radius-md)', 
-              fontSize: '13px', 
+            style={{
+              backgroundColor: 'var(--color-danger-light)',
+              color: 'var(--color-danger)',
+              padding: '10px 16px',
+              borderRadius: 'var(--radius-md)',
+              fontSize: '13px',
               fontWeight: '600',
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '8px', 
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
               cursor: 'pointer',
               marginBottom: '20px',
               border: '1px solid rgba(255, 75, 75, 0.15)'
@@ -199,12 +199,25 @@ function App() {
 
         {/* Rendu du composant React actif */}
         {renderActiveView()}
+
+        {/* Pied de page global avec version */}
+        <footer style={{
+          textAlign: 'center',
+          padding: '24px 0 40px',
+          fontSize: '11px',
+          color: 'var(--color-dark-light)',
+          borderTop: '1px solid var(--color-border)',
+          marginTop: '40px'
+        }}>
+          <div>© {new Date().getFullYear()} MarmiCout — Logiciel de gestion Traiteur & Plats Cuisinés</div>
+          <div style={{ marginTop: '4px', fontWeight: 'bold' }}>Version V.1.1</div>
+        </footer>
       </main>
 
       {/* --- TABBAR DE NAVIGATION BASSE (MOBILE) --- */}
       <nav className="tabbar">
-        <a 
-          href="#Dashboard" 
+        <a
+          href="#Dashboard"
           className={`tabbar-item ${activeTab === 'Dashboard' ? 'active' : ''}`}
           onClick={(e) => { e.preventDefault(); handleNavigate('Dashboard'); }}
         >
@@ -212,8 +225,8 @@ function App() {
           <span>Accueil</span>
         </a>
 
-        <a 
-          href="#Produits" 
+        <a
+          href="#Produits"
           className={`tabbar-item ${activeTab === 'Produits' ? 'active' : ''}`}
           onClick={(e) => { e.preventDefault(); handleNavigate('Produits'); }}
         >
@@ -227,7 +240,7 @@ function App() {
         </a>
 
         {/* Bouton Central de Scan / Ajout rapide mobile */}
-        <button 
+        <button
           className="tabbar-item tabbar-item-center"
           onClick={() => setIsMobileActionOpen(true)}
           aria-label="Actions rapides"
@@ -235,8 +248,8 @@ function App() {
           <Plus size={24} />
         </button>
 
-        <a 
-          href="#Recettes" 
+        <a
+          href="#Recettes"
           className={`tabbar-item ${activeTab === 'Recettes' ? 'active' : ''}`}
           onClick={(e) => { e.preventDefault(); handleNavigate('Recettes'); }}
         >
@@ -244,8 +257,8 @@ function App() {
           <span>Recettes</span>
         </a>
 
-        <a 
-          href="#Ventes" 
+        <a
+          href="#Ventes"
           className={`tabbar-item ${activeTab === 'Ventes' ? 'active' : ''}`}
           onClick={(e) => { e.preventDefault(); handleNavigate('Ventes'); }}
         >
@@ -261,9 +274,9 @@ function App() {
         onClose={() => setIsMobileActionOpen(false)}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '8px 0' }}>
-          
-          <button 
-            className="btn btn-primary" 
+
+          <button
+            className="btn btn-primary"
             style={{ height: '54px', fontSize: '15px', justifyContent: 'flex-start', paddingLeft: '20px' }}
             onClick={() => {
               setIsMobileActionOpen(false);
@@ -274,8 +287,8 @@ function App() {
             Scanner un code-barres (Achat)
           </button>
 
-          <button 
-            className="btn btn-secondary" 
+          <button
+            className="btn btn-secondary"
             style={{ height: '50px', justifyContent: 'flex-start', paddingLeft: '20px' }}
             onClick={() => {
               setIsMobileActionOpen(false);
@@ -286,8 +299,8 @@ function App() {
             Enregistrer une vente
           </button>
 
-          <button 
-            className="btn btn-secondary" 
+          <button
+            className="btn btn-secondary"
             style={{ height: '50px', justifyContent: 'flex-start', paddingLeft: '20px' }}
             onClick={() => {
               setIsMobileActionOpen(false);
@@ -298,8 +311,8 @@ function App() {
             Déclarer une production
           </button>
 
-          <button 
-            className="btn btn-secondary" 
+          <button
+            className="btn btn-secondary"
             style={{ height: '50px', justifyContent: 'flex-start', paddingLeft: '20px' }}
             onClick={() => {
               setIsMobileActionOpen(false);
@@ -310,8 +323,8 @@ function App() {
             Créer un nouvel ingrédient
           </button>
 
-          <button 
-            className="btn btn-secondary" 
+          <button
+            className="btn btn-secondary"
             style={{ height: '50px', justifyContent: 'flex-start', paddingLeft: '20px' }}
             onClick={() => {
               setIsMobileActionOpen(false);
@@ -322,8 +335,8 @@ function App() {
             Aller aux paramètres
           </button>
 
-          <button 
-            className="btn btn-danger" 
+          <button
+            className="btn btn-danger"
             style={{ height: '44px', marginTop: '12px' }}
             onClick={() => setIsMobileActionOpen(false)}
           >

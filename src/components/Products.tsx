@@ -16,6 +16,7 @@ import { dbService } from '../services/db';
 import { Product, Store, StockMovement, Purchase } from '../types';
 import { Drawer } from './Drawer';
 import { BarcodeScanner } from './BarcodeScanner';
+import { LookupResult } from '../services/barcodeLookupService';
 
 interface ProductsProps {
   initialTriggerAdd?: boolean;
@@ -155,14 +156,46 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
     loadData();
   };
 
-  // Traiter le scan de code-barres dans le formulaire
-  const handleBarcodeScanned = (barcode: string) => {
-    setFormBarcode(barcode);
+  // Traiter le scan de code-barres dans le formulaire avec recherche locale et externe
+  const handleBarcodeScanned = (barcode: string, result: LookupResult) => {
     setIsScannerOpen(false);
-    // Vérifier si ce code-barres appartient déjà à un produit
-    const existing = dbService.getProductByBarcode(barcode);
-    if (existing) {
-      alert(`Ce code-barres est déjà attribué à : ${existing.name}. Vous pouvez modifier le produit existant.`);
+    
+    if (result.state === 'local_found' && result.localProduct) {
+      alert(`Ce code-barres est déjà attribué au produit existant : ${result.localProduct.name}. Modification en cours.`);
+      handleOpenEditForm(result.localProduct, { stopPropagation: () => {} } as any);
+    } else if (result.state === 'external_found' && result.externalProduct) {
+      setFormBarcode(result.externalProduct.barcode);
+      setFormName(result.externalProduct.name);
+      setFormBrand(result.externalProduct.brand);
+      setFormFormat(result.externalProduct.format);
+      if (result.externalProduct.notes) {
+        setFormNotes(result.externalProduct.notes);
+      } else {
+        setFormNotes('Produit importé via recherche de code-barres externe.');
+      }
+      
+      // Essayer de mapper la catégorie externe de manière floue avec nos catégories internes
+      if (result.externalProduct.category) {
+        const extCat = result.externalProduct.category.toLowerCase();
+        const matchedCat = settings.categories.find(c => 
+          extCat.includes(c.toLowerCase()) || c.toLowerCase().includes(extCat)
+        );
+        if (matchedCat) {
+          setFormCategory(matchedCat);
+        } else {
+          setFormCategory(settings.categories[0] || '');
+        }
+      }
+    } else {
+      // Produit non trouvé ou erreur réseau : préremplir le code-barres pour création manuelle
+      setFormBarcode(barcode);
+      setFormName('');
+      setFormBrand('');
+      setFormFormat('Unité');
+      setFormNotes('');
+      if (result.state === 'error' && result.error) {
+        alert(result.error);
+      }
     }
   };
 

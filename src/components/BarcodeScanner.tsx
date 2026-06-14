@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Camera, RefreshCw, X, HelpCircle, Check, AlertTriangle } from 'lucide-react';
 import { dbService } from '../services/db';
 import { Html5Qrcode, Html5QrcodeSupportedFormats, CameraDevice } from 'html5-qrcode';
+import { barcodeLookupService, LookupResult } from '../services/barcodeLookupService';
 
 interface BarcodeScannerProps {
-  onScan: (barcode: string) => void;
+  onScan: (barcode: string, result: LookupResult) => void;
   onClose: () => void;
 }
 
@@ -12,13 +13,19 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
   const [manualCode, setManualCode] = useState('');
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState('Prêt à scanner');
-  
+
   // États de la caméra physique
   const [isRealCamera, setIsRealCamera] = useState(false);
   const [cameraPermission, setCameraPermission] = useState<'prompt' | 'granted' | 'denied' | 'error'>('prompt');
   const [errorMessage, setErrorMessage] = useState('');
   const [cameraDevices, setCameraDevices] = useState<CameraDevice[]>([]);
   const [activeCameraId, setActiveCameraId] = useState<string | null>(null);
+
+  // États du lookup de code-barres
+  const [lookupState, setLookupState] = useState<'idle' | 'local_lookup' | 'external_lookup' | 'found' | 'not_found' | 'error'>('idle');
+  const [foundProductName, setFoundProductName] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const isProcessingRef = useRef(false);
 
   // Synthèse d'un bip de caisse enregistreuse
   const playBeep = () => {
@@ -28,12 +35,12 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
       const ctx = new AudioCtx();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      
+
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(1200, ctx.currentTime); // Fréquence de 1200Hz
+      osc.frequency.setValueAtTime(1200, ctx.currentTime);
       gain.gain.setValueAtTime(0.15, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
-      
+
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start();
@@ -43,11 +50,77 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
     }
   };
 
+  const handleBarcodeLookup = async (barcode: string) => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+    setIsProcessing(true);
+    setScanning(true);
+    setLookupState('local_lookup');
+    setScanMessage('Recherche dans la base locale...');
+    
+    try {
+      const result = await barcodeLookupService.lookupBarcode(barcode);
+      
+      if (result.state === 'local_found') {
+        setLookupState('found');
+        setFoundProductName(result.localProduct?.name || '');
+        setScanMessage(`Produit trouvé (local) : ${result.localProduct?.name}`);
+        setTimeout(() => {
+          onScan(barcode, result);
+          onClose();
+        }, 1000);
+      } else {
+        setLookupState('external_lookup');
+        setScanMessage('Recherche externe (Open Food Facts)...');
+        
+        await new Promise(resolve => setTimeout(resolve, 600));
+        
+        const extResult = await barcodeLookupService.lookupBarcode(barcode);
+        
+        if (extResult.state === 'external_found' && extResult.externalProduct) {
+          setLookupState('found');
+          setFoundProductName(extResult.externalProduct.name);
+          setScanMessage(`Produit trouvé (externe) : ${extResult.externalProduct.name}`);
+          setTimeout(() => {
+            onScan(barcode, extResult);
+            onClose();
+          }, 1200);
+        } else if (extResult.state === 'error') {
+          setLookupState('error');
+          setScanMessage(extResult.error || 'Erreur réseau');
+          setTimeout(() => {
+            onScan(barcode, extResult);
+            onClose();
+          }, 1800);
+        } else {
+          setLookupState('not_found');
+          setScanMessage('Produit inconnu');
+          setTimeout(() => {
+            onScan(barcode, extResult);
+            onClose();
+          }, 1200);
+        }
+      }
+    } catch (err) {
+      console.error('Erreur lors de la recherche de code-barres :', err);
+      setLookupState('error');
+      setScanMessage('Erreur inattendue.');
+      setTimeout(() => {
+        onScan(barcode, { state: 'error', error: 'Erreur inattendue.' });
+        onClose();
+      }, 1500);
+    } finally {
+      setIsProcessing(false);
+      isProcessingRef.current = false;
+      setScanning(false);
+    }
+  };
+
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (manualCode.trim()) {
       playBeep();
-      onScan(manualCode.trim());
+      handleBarcodeLookup(manualCode.trim());
       setManualCode('');
     }
   };
@@ -55,38 +128,33 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
   const startDemoScan = (barcode: string, productName: string) => {
     setScanning(true);
     setScanMessage(`Analyse de l'article : ${productName}...`);
-    
+
     setTimeout(() => {
       playBeep();
       setScanning(false);
-      setScanMessage('Scan réussi !');
-      onScan(barcode);
+      handleBarcodeLookup(barcode);
     }, 1200);
   };
 
   const triggerRandomScan = () => {
     const products = dbService.getProducts().filter(p => p.barcode);
     if (products.length === 0) {
-      setScanMessage('Aucun produit enregistré avec code-barres');
+      startDemoScan('7622210449283', 'LU Prince Chocolat');
       return;
     }
     const randomProduct = products[Math.floor(Math.random() * products.length)];
     startDemoScan(randomProduct.barcode, randomProduct.name);
   };
 
-  // Liste des produits avec code-barres de démonstration pour le test rapide
   const demoProducts = dbService.getProducts().filter(p => p.barcode);
 
-  // Gestion du cycle de vie du scanneur physique html5-qrcode
   useEffect(() => {
     let html5Qrcode: Html5Qrcode | null = null;
     let isMounted = true;
 
     const initHtml5Qrcode = async () => {
       try {
-        // Laisser un court délai pour que le conteneur DOM soit bien rendu
         await new Promise(resolve => setTimeout(resolve, 300));
-        
         if (!isMounted) return;
 
         html5Qrcode = new Html5Qrcode("scanner-video-container", {
@@ -101,26 +169,23 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
           ]
         });
 
-        // Récupérer la liste des caméras disponibles
         const devices = await Html5Qrcode.getCameras();
         if (isMounted && devices && devices.length > 0) {
           setCameraDevices(devices);
-          // Choisir par défaut la caméra arrière (environnement) si possible
           const selectedCamId = activeCameraId || (
-            devices.find(device => 
-              device.label.toLowerCase().includes('back') || 
+            devices.find(device =>
+              device.label.toLowerCase().includes('back') ||
               device.label.toLowerCase().includes('arrière') ||
               device.label.toLowerCase().includes('rear') ||
               device.label.toLowerCase().includes('environment')
             )?.id || devices[0].id
           );
-          
+
           if (!activeCameraId) {
             setActiveCameraId(selectedCamId);
           }
           await startScanning(html5Qrcode, selectedCamId);
         } else if (isMounted) {
-          // Si aucune caméra n'est renvoyée mais pas d'erreur, essayer en facingMode directement
           await startScanning(html5Qrcode, { facingMode: "environment" });
         }
       } catch (err: any) {
@@ -132,7 +197,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
             setErrorMessage("Accès caméra refusé. Veuillez autoriser la caméra dans les paramètres de votre navigateur.");
           } else {
             setCameraPermission('error');
-            setErrorMessage("Impossible d'activer la caméra. Assurez-vous d'être sur une adresse sécurisée (HTTPS) ou utilisez la simulation.");
+            setErrorMessage("Impossible d'activer la caméra. Assurez-vous d'être sur une adresse sécurisée (HTTPS).");
           }
         }
       }
@@ -145,7 +210,6 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
           {
             fps: 10,
             qrbox: (width, height) => {
-              // Rectangle large et plat pour codes-barres 1D
               const boxWidth = Math.min(width * 0.85, 300);
               const boxHeight = Math.min(height * 0.45, 140);
               return { x: (width - boxWidth) / 2, y: (height - boxHeight) / 2, width: boxWidth, height: boxHeight };
@@ -153,13 +217,11 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
             aspectRatio: 1.0
           },
           (decodedText) => {
+            if (isProcessingRef.current) return;
             playBeep();
-            onScan(decodedText);
-            onClose();
+            handleBarcodeLookup(decodedText);
           },
-          () => {
-            // Ignorer les erreurs de lecture continue
-          }
+          () => {}
         );
 
         if (isMounted) {
@@ -185,26 +247,78 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
         html5Qrcode.stop().catch(e => console.error("Erreur arrêt scanner", e));
       }
     };
-  }, [onScan, onClose, activeCameraId]);
+  }, [activeCameraId]);
 
-  // Changer de caméra active (si plusieurs caméras physiques)
   const handleSwitchCamera = (deviceId: string) => {
     setActiveCameraId(deviceId);
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      
-      {/* Viseur de Scan */}
+
       <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--radius-md)', border: '2px solid var(--color-border)' }}>
-        
-        {/* Conteneur principal pour html5-qrcode */}
+
         <div id="scanner-video-container" className="scanner-viewport" style={{ border: 'none' }}>
-          {/* html5-qrcode injectera la vidéo ici */}
         </div>
 
-        {/* Ligne laser animée sur la vidéo */}
-        {isRealCamera && (
+        {lookupState !== 'idle' && (
+          <div style={{
+            position: 'absolute',
+            top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(21, 16, 12, 0.92)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 40,
+            color: '#fff',
+            padding: '16px',
+            textAlign: 'center',
+            gap: '12px'
+          }}>
+            {lookupState === 'local_lookup' && (
+              <>
+                <RefreshCw className="spin" size={36} style={{ color: 'var(--color-primary)', animation: 'spin 1.5s linear infinite' }} />
+                <span style={{ fontSize: '14px', fontWeight: 'bold' }}>Recherche dans la base locale...</span>
+              </>
+            )}
+            {lookupState === 'external_lookup' && (
+              <>
+                <RefreshCw className="spin" size={36} style={{ color: 'var(--color-info)', animation: 'spin 1.5s linear infinite' }} />
+                <span style={{ fontSize: '14px', fontWeight: 'bold' }}>Recherche externe (Open Food Facts)...</span>
+              </>
+            )}
+            {lookupState === 'found' && (
+              <>
+                <div style={{ backgroundColor: 'var(--color-secondary)', borderRadius: '50%', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Check size={36} style={{ color: '#fff' }} />
+                </div>
+                <span style={{ fontSize: '15px', fontWeight: 'bold', color: 'var(--color-secondary)' }}>Produit identifié !</span>
+                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)', maxWidth: '240px' }}>{foundProductName}</span>
+              </>
+            )}
+            {lookupState === 'not_found' && (
+              <>
+                <div style={{ backgroundColor: 'var(--color-dark-light)', borderRadius: '50%', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <HelpCircle size={36} style={{ color: '#fff' }} />
+                </div>
+                <span style={{ fontSize: '15px', fontWeight: 'bold' }}>Produit non répertorié</span>
+                <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>Redirection vers la création manuelle...</span>
+              </>
+            )}
+            {lookupState === 'error' && (
+              <>
+                <div style={{ backgroundColor: 'var(--color-danger)', borderRadius: '50%', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <AlertTriangle size={36} style={{ color: '#fff' }} />
+                </div>
+                <span style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--color-danger)' }}>Erreur de recherche</span>
+                <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', maxWidth: '240px' }}>{scanMessage}</span>
+              </>
+            )}
+          </div>
+        )}
+
+        {isRealCamera && lookupState === 'idle' && (
           <>
             <div className="scanner-laser scan-glow" style={{ pointerEvents: 'none', zIndex: 10 }} />
             <div className="scanner-overlay-box" style={{ pointerEvents: 'none', zIndex: 10, position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }} />
@@ -216,12 +330,11 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
           </>
         )}
 
-        {/* Recouvrement si la caméra physique n'est pas lancée */}
-        {!isRealCamera && (
+        {!isRealCamera && lookupState === 'idle' && (
           <div className="scanner-viewport" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 5, backgroundColor: '#15100c', border: 'none', display: 'flex', flexDirection: 'column', padding: '16px' }}>
             <div className="scanner-laser scan-glow" />
             <div className="scanner-overlay-box" />
-            
+
             <div style={{ zIndex: 12, textAlign: 'center', marginTop: 'auto', marginBottom: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
               {cameraPermission === 'prompt' ? (
                 <>
@@ -250,7 +363,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
           </div>
         )}
 
-        {scanning && (
+        {scanning && lookupState === 'idle' && (
           <div style={{
             position: 'absolute',
             top: 0, left: 0, right: 0, bottom: 0,
@@ -265,14 +378,13 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
         )}
       </div>
 
-      {/* Selecteur de caméra si plusieurs sont disponibles */}
       {isRealCamera && cameraDevices.length > 1 && (
         <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="form-label" style={{ fontSize: '11px' }}>Changer d'appareil photo :</label>
-          <select 
-            className="form-input" 
+          <select
+            className="form-input"
             style={{ height: '36px', padding: '4px 8px', fontSize: '12px' }}
-            value={activeCameraId || ''} 
+            value={activeCameraId || ''}
             onChange={(e) => handleSwitchCamera(e.target.value)}
           >
             {cameraDevices.map(device => (
@@ -284,20 +396,19 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
         </div>
       )}
 
-      {/* Actions */}
       <div style={{ display: 'flex', gap: '8px' }}>
-        <button 
-          type="button" 
-          className="btn btn-primary" 
+        <button
+          type="button"
+          className="btn btn-primary"
           style={{ flex: 1 }}
           onClick={triggerRandomScan}
-          disabled={scanning}
+          disabled={scanning || isProcessing}
         >
           <Camera size={18} />
-          Scan Aléatoire (Démo)
+          Scan Aléatoire
         </button>
-        <button 
-          type="button" 
+        <button
+          type="button"
           className="btn btn-secondary btn-icon-only"
           onClick={onClose}
           title="Fermer"
@@ -306,50 +417,76 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
         </button>
       </div>
 
-      {/* Raccourcis de produits de démo */}
-      {demoProducts.length > 0 && (
-        <div>
-          <span className="form-label" style={{ marginBottom: '6px', display: 'block', fontSize: '12px' }}>
-            Simuler le scan d'un ingrédient en stock :
-          </span>
+      <div>
+        <span className="form-label" style={{ marginBottom: '6px', display: 'block', fontSize: '12px' }}>
+          Simuler le scan d'un produit (local ou via Open Food Facts API) :
+        </span>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {demoProducts.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+              {demoProducts.slice(0, 3).map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ height: '28px', padding: '4px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)' }}
+                  onClick={() => startDemoScan(p.barcode, p.name)}
+                  disabled={scanning || isProcessing}
+                >
+                  🏠 {p.name} (Local)
+                </button>
+              ))}
+            </div>
+          )}
+
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-            {demoProducts.map(p => (
-              <button
-                key={p.id}
-                type="button"
-                className="btn btn-secondary"
-                style={{ 
-                  height: '28px', 
-                  padding: '4px 8px', 
-                  fontSize: '11px',
-                  borderRadius: 'var(--radius-sm)'
-                }}
-                onClick={() => startDemoScan(p.barcode, p.name)}
-                disabled={scanning}
-              >
-                {p.name}
-              </button>
-            ))}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ height: '28px', padding: '4px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-info)' }}
+              onClick={() => startDemoScan('7622210449283', 'LU Prince Chocolat')}
+              disabled={scanning || isProcessing}
+            >
+              🌐 LU Prince (API OFF)
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ height: '28px', padding: '4px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-info)' }}
+              onClick={() => startDemoScan('5449000000996', 'Coca-Cola')}
+              disabled={scanning || isProcessing}
+            >
+              🌐 Coca-Cola (API OFF)
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ height: '28px', padding: '4px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-info)' }}
+              onClick={() => startDemoScan('3017624010701', 'Nutella 400g')}
+              disabled={scanning || isProcessing}
+            >
+              🌐 Nutella (API OFF)
+            </button>
             <button
               type="button"
               className="btn btn-danger"
-              style={{ 
-                height: '28px', 
-                padding: '4px 8px', 
+              style={{
+                height: '28px',
+                padding: '4px 8px',
                 fontSize: '11px',
                 borderRadius: 'var(--radius-sm)',
                 backgroundColor: 'var(--color-danger-light)'
               }}
               onClick={() => startDemoScan('9999999999999', 'Produit Inconnu')}
-              disabled={scanning}
+              disabled={scanning || isProcessing}
             >
-              Code Inconnu (Nouveau)
+              ❓ Inconnu (Nouveau)
             </button>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Saisie Manuelle */}
       <form onSubmit={handleManualSubmit} style={{ borderTop: '1px solid var(--color-border)', paddingTop: '16px' }}>
         <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="form-label" htmlFor="manual-barcode-input">
@@ -364,13 +501,13 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
               style={{ flex: 1, height: '40px' }}
               value={manualCode}
               onChange={(e) => setManualCode(e.target.value)}
-              disabled={scanning}
+              disabled={scanning || isProcessing}
             />
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="btn btn-success"
               style={{ height: '40px' }}
-              disabled={scanning || !manualCode.trim()}
+              disabled={scanning || isProcessing || !manualCode.trim()}
             >
               Saisir
             </button>
