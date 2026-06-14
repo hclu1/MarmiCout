@@ -328,7 +328,48 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
       ) : !meals || meals.length === 0 ? (
         <div className="card" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--color-dark-light)' }}>
           <Compass size={40} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
-          <p>Aucun résultat trouvé pour votre recherche. Essayez un autre mot-clé (de préférence en anglais).</p>
+          {selectedCategory && selectedArea ? (
+            <>
+              <p style={{ marginBottom: '8px', fontWeight: '600', color: 'var(--color-dark)' }}>
+                Aucune recette pour la combinaison :
+              </p>
+              <p style={{ fontSize: '13px', marginBottom: '16px' }}>
+                catégorie <strong>{translateCategoryFilterToFrench(selectedCategory)}</strong> + cuisine <strong>{translateAreaToFrench(selectedArea)}</strong>
+              </p>
+              <p style={{ fontSize: '12px', color: 'var(--color-dark-light)', marginBottom: '16px' }}>
+                TheMealDB ne dispose pas toujours de recettes pour toutes les combinaisons.<br/>
+                Essayez de supprimer un des deux filtres.
+              </p>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ fontSize: '13px' }}
+                  onClick={() => handleCategoryFilter('')}
+                >
+                  Voir toutes les recettes <strong>{translateAreaToFrench(selectedArea)}</strong>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ fontSize: '13px' }}
+                  onClick={() => handleAreaFilter('')}
+                >
+                  Voir toutes les recettes <strong>{translateCategoryFilterToFrench(selectedCategory)}</strong>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ fontSize: '13px' }}
+                  onClick={() => { handleCategoryFilter(''); handleAreaFilter(''); }}
+                >
+                  Effacer tous les filtres
+                </button>
+              </div>
+            </>
+          ) : (
+            <p>Aucun résultat trouvé. Essayez un autre mot-clé (de préférence en anglais) ou un autre filtre.</p>
+          )}
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: selectedMealDetail ? '1fr 1fr' : '1fr', gap: '20px', alignItems: 'start' }}>
