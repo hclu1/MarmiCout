@@ -170,12 +170,11 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
 
   // Ingrédients dynamiques dans le formulaire
   const handleAddIngredientLine = () => {
-    const defaultProduct = products[0];
-    if (!defaultProduct) return;
     setFormIngredients([...formIngredients, {
-      productId: defaultProduct.id,
+      customName: 'Nouvel ingrédient',
       qtyUsed: 100,
-      unit: defaultProduct.unit === 'kg' ? 'g' : defaultProduct.unit // si kg on propose grammes par défaut pour la recette
+      unit: 'g',
+      customCostPerUnit: 0
     }]);
   };
 
@@ -185,14 +184,29 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
 
   const handleIngredientChange = (index: number, field: string, value: any) => {
     const updated = [...formIngredients];
-    updated[index] = { ...updated[index], [field]: value };
     
-    // Si on change de produit, on adapte l'unité proposée
     if (field === 'productId') {
-      const prod = products.find(p => p.id === value);
-      if (prod) {
-        updated[index].unit = prod.unit === 'kg' ? 'g' : prod.unit;
+      if (value === "") {
+        // Devient libre / non lié
+        updated[index] = {
+          ...updated[index],
+          productId: undefined,
+          customName: updated[index].customName || 'Nouvel ingrédient',
+          customCostPerUnit: updated[index].customCostPerUnit || 0
+        };
+      } else {
+        // Devient lié au stock
+        const prod = products.find(p => p.id === value);
+        updated[index] = {
+          ...updated[index],
+          productId: value,
+          customName: undefined,
+          customCostPerUnit: undefined,
+          unit: prod ? (prod.unit === 'kg' ? 'g' : prod.unit) : updated[index].unit
+        };
       }
+    } else {
+      updated[index] = { ...updated[index], [field]: value };
     }
 
     setFormIngredients(updated);
@@ -252,7 +266,17 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
       isActive: formIsActive
     };
 
-    dbService.saveRecipe(newRecipe, formIngredients, formPackagings);
+    // Nettoyer les ingrédients pour n'enregistrer que les champs pertinents
+    const cleanedIngredients = formIngredients.map(ing => ({
+      productId: ing.productId || undefined,
+      customName: ing.productId ? undefined : (ing.customName || 'Ingrédient'),
+      qtyUsed: ing.qtyUsed,
+      unit: ing.unit,
+      originalQtyUsed: ing.originalQtyUsed || ing.qtyUsed,
+      customCostPerUnit: ing.productId ? undefined : (ing.customCostPerUnit || 0)
+    }));
+
+    dbService.saveRecipe(newRecipe, cleanedIngredients, formPackagings);
     setIsFormOpen(false);
     loadData();
     
@@ -501,62 +525,131 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
               Aucun ingrédient ajouté pour l'instant. Utilisez le bouton ci-dessus.
             </p>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
               {formIngredients.map((ing, idx) => {
+                const isLinked = ing.productId !== undefined && ing.productId !== "";
                 const selectedProd = products.find(p => p.id === ing.productId);
-                const avgPrice = selectedProd ? selectedProd.avgPurchasePrice : 0;
                 
                 // Calcul coût ligne à la volée dans le formulaire
-                const convertedQty = selectedProd ? convertUnits(ing.qtyUsed, ing.unit, selectedProd.unit) : 0;
-                const lineCost = convertedQty * avgPrice;
+                let lineCost = 0;
+                if (isLinked && selectedProd) {
+                  const convertedQty = convertUnits(ing.qtyUsed, ing.unit, selectedProd.unit);
+                  lineCost = convertedQty * selectedProd.avgPurchasePrice;
+                } else if (ing.customCostPerUnit) {
+                  lineCost = ing.qtyUsed * ing.customCostPerUnit;
+                }
 
                 return (
-                  <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '10px', backgroundColor: 'var(--color-light)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
-                    <select
-                      className="form-input"
-                      style={{ flex: 2, height: '38px', padding: '0 8px' }}
-                      value={ing.productId}
-                      onChange={(e) => handleIngredientChange(idx, 'productId', e.target.value)}
-                    >
-                      {products.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
+                  <div 
+                    key={idx} 
+                    style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '8px', 
+                      padding: '12px', 
+                      backgroundColor: isLinked ? 'rgba(74, 155, 120, 0.04)' : 'rgba(242, 85, 34, 0.03)', 
+                      borderRadius: 'var(--radius-md)', 
+                      border: `1px solid ${isLinked ? 'var(--color-secondary-light)' : 'rgba(242, 85, 34, 0.15)'}` 
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {/* Nom de l'ingrédient ou produit */}
+                      {isLinked && selectedProd ? (
+                        <div style={{ flex: 2, fontSize: '13px', fontWeight: '700', color: 'var(--color-dark)', height: '38px', lineHeight: '38px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          📦 {selectedProd.name}
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          className="form-input"
+                          style={{ flex: 2, height: '38px', padding: '0 8px', fontWeight: '600' }}
+                          required
+                          value={ing.customName || ''}
+                          onChange={(e) => handleIngredientChange(idx, 'customName', e.target.value)}
+                          placeholder="Nom de l'ingrédient"
+                        />
+                      )}
 
-                    <input
-                      type="number"
-                      step="any"
-                      className="form-input"
-                      style={{ flex: 1, width: '60px', height: '38px', padding: '0 8px', textAlign: 'center' }}
-                      required
-                      min="0.001"
-                      value={ing.qtyUsed}
-                      onChange={(e) => handleIngredientChange(idx, 'qtyUsed', Number(e.target.value))}
-                    />
+                      {/* Quantité */}
+                      <input
+                        type="number"
+                        step="any"
+                        className="form-input"
+                        style={{ width: '65px', height: '38px', padding: '0 4px', textAlign: 'center' }}
+                        required
+                        min="0.001"
+                        value={ing.qtyUsed}
+                        onChange={(e) => handleIngredientChange(idx, 'qtyUsed', Number(e.target.value))}
+                      />
 
-                    <select
-                      className="form-input"
-                      style={{ width: '60px', height: '38px', padding: '0 4px' }}
-                      value={ing.unit}
-                      onChange={(e) => handleIngredientChange(idx, 'unit', e.target.value)}
-                    >
-                      {settings.units.map(u => (
-                        <option key={u} value={u}>{u}</option>
-                      ))}
-                    </select>
+                      {/* Unité */}
+                      <select
+                        className="form-input"
+                        style={{ width: '60px', height: '38px', padding: '0 4px' }}
+                        value={ing.unit}
+                        onChange={(e) => handleIngredientChange(idx, 'unit', e.target.value)}
+                      >
+                        {settings.units.map(u => (
+                          <option key={u} value={u}>{u}</option>
+                        ))}
+                      </select>
 
-                    <span style={{ fontSize: '12px', fontWeight: '600', width: '50px', textAlign: 'right' }}>
-                      {lineCost.toFixed(2)}€
-                    </span>
+                      {/* Coût de ligne calculé */}
+                      <span style={{ fontSize: '12px', fontWeight: '600', width: '55px', textAlign: 'right' }}>
+                        {lineCost.toFixed(2)}€
+                      </span>
 
-                    <button
-                      type="button"
-                      className="btn btn-danger btn-icon-only"
-                      style={{ height: '38px', width: '38px' }}
-                      onClick={() => handleRemoveIngredientLine(idx)}
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                      {/* Supprimer ligne */}
+                      <button
+                        type="button"
+                        className="btn btn-danger btn-icon-only"
+                        style={{ height: '38px', width: '38px' }}
+                        onClick={() => handleRemoveIngredientLine(idx)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+
+                    {/* Liaison de stock */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderTop: '1px dashed var(--color-border)', paddingTop: '8px', marginTop: '4px' }}>
+                      <span style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-dark-light)', fontWeight: '600' }}>
+                        Liaison stock :
+                      </span>
+                      
+                      <select
+                        className="form-input"
+                        style={{ flex: 1, height: '30px', padding: '0 4px', fontSize: '12px' }}
+                        value={ing.productId || ""}
+                        onChange={(e) => handleIngredientChange(idx, 'productId', e.target.value)}
+                      >
+                        <option value="">-- Libre (non lié au stock) --</option>
+                        {products.map(p => (
+                          <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>
+                        ))}
+                      </select>
+
+                      {/* Saisie coût estimé si libre */}
+                      {!isLinked && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '11px', whiteSpace: 'nowrap' }}>Coût est. :</span>
+                          <input
+                            type="number"
+                            step="any"
+                            className="form-input"
+                            style={{ width: '50px', height: '30px', padding: '0 4px', fontSize: '12px', textAlign: 'center' }}
+                            value={ing.customCostPerUnit || 0}
+                            onChange={(e) => handleIngredientChange(idx, 'customCostPerUnit', Number(e.target.value))}
+                          />
+                          <span style={{ fontSize: '11px' }}>€/{ing.unit}</span>
+                        </div>
+                      )}
+
+                      {isLinked && selectedProd && (
+                        <span className="badge badge-success" style={{ fontSize: '10px', height: '24px', lineHeight: '20px' }}>
+                          PMP : {selectedProd.avgPurchasePrice.toFixed(2)}€/{selectedProd.unit}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
