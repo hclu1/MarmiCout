@@ -389,7 +389,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
       customName: ing.productId ? undefined : (ing.customName || 'Ingrédient'),
       qtyUsed: ing.qtyUsed,
       unit: ing.unit,
-      originalQtyUsed: ing.originalQtyUsed || ing.qtyUsed,
+      originalQtyUsed: ing.qtyUsed,
       customCostPerUnit: ing.productId ? undefined : (ing.customCostPerUnit || 0)
     }));
 
@@ -702,6 +702,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
         title={editingRecipe ? `Modifier ${editingRecipe.name}` : "Créer une recette"}
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
+        zIndex={700}
         footer={
           <>
             <button className="btn btn-secondary" onClick={() => setIsFormOpen(false)}>Annuler</button>

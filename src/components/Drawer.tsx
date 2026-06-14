@@ -7,9 +7,10 @@ interface DrawerProps {
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  zIndex?: number;
 }
 
-export const Drawer: React.FC<DrawerProps> = ({ title, isOpen, onClose, children, footer }) => {
+export const Drawer: React.FC<DrawerProps> = ({ title, isOpen, onClose, children, footer, zIndex }) => {
   // Désactiver le défilement du corps de la page quand le drawer est ouvert
   useEffect(() => {
     if (isOpen) {
@@ -27,10 +28,17 @@ export const Drawer: React.FC<DrawerProps> = ({ title, isOpen, onClose, children
   return (
     <>
       {/* Fond obscurci */}
-      <div className="drawer-backdrop" onClick={onClose} />
+      <div 
+        className="drawer-backdrop" 
+        onClick={onClose} 
+        style={zIndex ? { zIndex: zIndex - 10 } : undefined} 
+      />
       
       {/* Panneau coulissant */}
-      <div className={`drawer ${isOpen ? 'open' : ''}`}>
+      <div 
+        className={`drawer ${isOpen ? 'open' : ''}`} 
+        style={zIndex ? { zIndex } : undefined}
+      >
         <div className="drawer-header">
           <h3 className="drawer-title">{title}</h3>
           <button className="drawer-close" onClick={onClose} aria-label="Fermer">
