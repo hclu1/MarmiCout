@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Camera, Upload, RefreshCw, AlertTriangle, Check, ArrowLeft, Plus, Trash2, Link as LinkIcon, Info } from 'lucide-react';
 import { Product, Recipe, RecipeIngredient, Settings } from '../types';
 import { convertUnits } from '../services/db';
+import mammoth from 'mammoth';
 
 interface RecipeScannerProps {
   onClose: () => void;
@@ -106,6 +107,159 @@ export const RecipeScanner: React.FC<RecipeScannerProps> = ({ onClose, onSave, p
     return partialMatch ? partialMatch.id : '';
   };
 
+  // Parser textuel de recette pour extraire titre, portions, ingrédients et étapes
+  const parseRecipeFromText = (text: string): {
+    name: string;
+    portions: number;
+    description: string;
+    ingredients: {
+      customName: string;
+      qtyUsed: number;
+      unit: string;
+    }[];
+    instructions: string;
+    notes: string;
+  } => {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    
+    let name = "Recette Importée";
+    let portions = 6;
+    let description = "";
+    const extractedIngredients: { customName: string; qtyUsed: number; unit: string }[] = [];
+    const instructionsLines: string[] = [];
+    const notesLines: string[] = [];
+    
+    if (lines.length > 0) {
+      name = lines[0];
+      if (name.length > 80 || name.toLowerCase().includes("ingrédient") || name.toLowerCase().includes("préparation")) {
+        name = "Recette Importée";
+      }
+    }
+
+    const portionsRegex = /(?:pour|rendement)\s*(\d+)\s*(?:personnes|parts|portions|pots|pièces)/i;
+    const portionsMatch = text.match(portionsRegex);
+    if (portionsMatch && portionsMatch[1]) {
+      portions = parseInt(portionsMatch[1], 10);
+    } else {
+      const portionsRegexAlt = /(\d+)\s*(?:personnes|parts|portions|pots|pièces)/i;
+      const portionsMatchAlt = text.match(portionsRegexAlt);
+      if (portionsMatchAlt && portionsMatchAlt[1]) {
+        portions = parseInt(portionsMatchAlt[1], 10);
+      }
+    }
+
+    let currentSection: 'meta' | 'ingredients' | 'instructions' | 'notes' = 'meta';
+
+    // Regex pour extraire : [quantité] [unité] [nom]
+    const ingLineRegex = /^[-*•\s]*([\d,./]+)?\s*(g|kg|ml|cl|l|pièce[s]?|œuf[s]?|pot[s]?|cuillère[s]?|sachet[s]?)?\s*(?:de|d')?\s+(.+)$/i;
+
+    lines.forEach((line, index) => {
+      if (index === 0 && line === name) return;
+
+      const lowerLine = line.toLowerCase();
+      
+      if (lowerLine.includes("ingrédient") || lowerLine.includes("ingredients")) {
+        currentSection = 'ingredients';
+        return;
+      }
+      if (lowerLine.includes("préparation") || lowerLine.includes("preparation") || lowerLine.includes("instruction") || lowerLine.includes("étape") || lowerLine.includes("etape")) {
+        currentSection = 'instructions';
+        return;
+      }
+      if (lowerLine.includes("remarque") || lowerLine.includes("conseil") || lowerLine.includes("astuce") || lowerLine.includes("notes") || lowerLine.includes("note")) {
+        currentSection = 'notes';
+        return;
+      }
+
+      if (currentSection === 'meta') {
+        if (line.match(portionsRegex)) return;
+        description += (description ? " " : "") + line;
+      } else if (currentSection === 'ingredients') {
+        const match = line.match(ingLineRegex);
+        if (match) {
+          let qtyStr = match[1] || "1";
+          let qty = 1;
+          if (qtyStr.includes('/')) {
+            const parts = qtyStr.split('/');
+            if (parts.length === 2) {
+              qty = parseFloat(parts[0]) / parseFloat(parts[1]);
+            }
+          } else {
+            qty = parseFloat(qtyStr.replace(',', '.'));
+          }
+          if (isNaN(qty)) qty = 1;
+
+          let unit = match[2] || "pièce";
+          unit = unit.trim().toLowerCase();
+          if (unit.startsWith('g')) unit = 'g';
+          else if (unit.startsWith('kg')) unit = 'kg';
+          else if (unit.startsWith('ml')) unit = 'ml';
+          else if (unit.startsWith('cl')) unit = 'cl';
+          else if (unit.startsWith('l')) unit = 'l';
+          else if (unit.startsWith('œuf') || unit.startsWith('oeuf')) unit = 'pièce';
+          else if (unit.startsWith('pot')) unit = 'pièce';
+          else if (unit.startsWith('cuillère')) unit = 'pièce';
+          else if (unit.startsWith('sachet')) unit = 'pièce';
+          else unit = 'pièce';
+
+          const customName = match[3].trim();
+          extractedIngredients.push({
+            customName: customName.charAt(0).toUpperCase() + customName.slice(1),
+            qtyUsed: qty,
+            unit: unit
+          });
+        } else {
+          extractedIngredients.push({
+            customName: line,
+            qtyUsed: 1,
+            unit: 'pièce'
+          });
+        }
+      } else if (currentSection === 'instructions') {
+        instructionsLines.push(line);
+      } else if (currentSection === 'notes') {
+        notesLines.push(line);
+      }
+    });
+
+    // Fallback si pas de structure claire de sections
+    if (extractedIngredients.length === 0 && lines.length > 1) {
+      lines.forEach((line, index) => {
+        if (index === 0 && line === name) return;
+        if (line.match(portionsRegex)) return;
+        
+        const match = line.match(ingLineRegex);
+        if (line.startsWith('-') || line.startsWith('*') || line.startsWith('•') || (match && match[1] && match[2])) {
+          if (match) {
+            let qtyStr = match[1] || "1";
+            let qty = parseFloat(qtyStr.replace(',', '.'));
+            if (isNaN(qty)) qty = 1;
+            const unit = match[2] || "pièce";
+            const customName = match[3].trim();
+            extractedIngredients.push({ customName, qtyUsed: qty, unit });
+          } else {
+            extractedIngredients.push({ customName: line.replace(/^[-*•\s]+/, ''), qtyUsed: 1, unit: 'pièce' });
+          }
+        } else {
+          if (line.match(/^\d+[\.\s]/) || line.length > 50) {
+            instructionsLines.push(line);
+          } else if (line.length > 0) {
+            description += (description ? "\n" : "") + line;
+          }
+        }
+      });
+    }
+
+    return {
+      name: name.substring(0, 50),
+      portions,
+      description: description.substring(0, 200),
+      ingredients: extractedIngredients,
+      instructions: instructionsLines.join('\n'),
+      notes: notesLines.join('\n')
+    };
+  };
+
   // Simuler le processus d'analyse OCR
   const launchOCR = (mockData: typeof MOCK_RECIPES[0], imageBase64: string | null) => {
     setStep('analyzing');
@@ -151,19 +305,100 @@ export const RecipeScanner: React.FC<RecipeScannerProps> = ({ onClose, onSave, p
     }, 1800);
   };
 
-  // Gérer le chargement d'un fichier photo par l'utilisateur
+  // Analyser un fichier texte / Word
+  const launchFileAnalysis = (fileName: string, extractedText: string) => {
+    setStep('analyzing');
+    setSourceImage(null);
+    setConfidence(0);
+    
+    let currentConf = 0;
+    const interval = setInterval(() => {
+      currentConf += 12;
+      if (currentConf >= 98) {
+        currentConf = 98;
+        clearInterval(interval);
+      }
+      setConfidence(currentConf);
+    }, 80);
+
+    setTimeout(() => {
+      clearInterval(interval);
+      setConfidence(98);
+      
+      const parsed = parseRecipeFromText(extractedText);
+      
+      setRecipeName(parsed.name);
+      setRecipeCategory(settings.recipeCategories[0]);
+      setRecipeDescription(parsed.description || `Importé depuis le fichier ${fileName}`);
+      setRecipePortions(parsed.portions);
+      setRecipeInstructions(parsed.instructions);
+      setRecipeNotes(parsed.notes);
+
+      const mappedIngredients = parsed.ingredients.map(ing => {
+        const matchedId = autoMapIngredient(ing.customName);
+        return {
+          customName: ing.customName,
+          qtyUsed: ing.qtyUsed,
+          unit: ing.unit,
+          productId: matchedId,
+          customCostPerUnit: 0
+        };
+      });
+
+      setIngredients(mappedIngredients);
+      setStep('validating');
+    }, 1200);
+  };
+
+  // Gérer le chargement d'un fichier (Photo, Texte ou Word) par l'utilisateur
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      // Choisir une recette de démo aléatoire pour simuler l'extraction
-      const randomDemo = MOCK_RECIPES[Math.floor(Math.random() * MOCK_RECIPES.length)];
-      launchOCR(randomDemo, base64);
-    };
-    reader.readAsDataURL(file);
+    const fileName = file.name.toLowerCase();
+
+    // 1. Fichiers texte (.txt)
+    if (fileName.endsWith('.txt')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        launchFileAnalysis(file.name, text);
+      };
+      reader.readAsText(file);
+    }
+    // 2. Fichiers Word (.docx)
+    else if (fileName.endsWith('.docx')) {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const arrayBuffer = event.target?.result as ArrayBuffer;
+        try {
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          const text = result.value;
+          launchFileAnalysis(file.name, text);
+        } catch (error) {
+          console.error("Erreur de lecture du fichier Word", error);
+          alert("Erreur de lecture du fichier Word (.docx).");
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+    // 3. Fichiers Word anciens (.doc)
+    else if (fileName.endsWith('.doc')) {
+      alert("Le format ancien Word (.doc) n'est pas supporté en direct. Veuillez l'enregistrer au format .docx ou .txt pour l'importer.");
+    }
+    // 4. Images / Captures
+    else if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        const randomDemo = MOCK_RECIPES[Math.floor(Math.random() * MOCK_RECIPES.length)];
+        launchOCR(randomDemo, base64);
+      };
+      reader.readAsDataURL(file);
+    }
+    else {
+      alert("Format de fichier non supporté. Veuillez importer une image, un fichier texte (.txt) ou Word (.docx).");
+    }
   };
 
   const triggerCamera = () => {
@@ -278,9 +513,9 @@ export const RecipeScanner: React.FC<RecipeScannerProps> = ({ onClose, onSave, p
       {step === 'idle' && (
         <div className="card" style={{ textAlign: 'center', padding: '48px 24px' }}>
           <Camera size={48} style={{ margin: '0 auto 16px', color: 'var(--color-primary)' }} />
-          <h2 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '8px' }}>Numériser une Recette</h2>
+          <h2 style={{ fontSize: '22px', fontWeight: '700', marginBottom: '8px' }}>Numériser / Importer une Recette</h2>
           <p style={{ color: 'var(--color-dark-light)', fontSize: '14px', maxWidth: '500px', margin: '0 auto 24px', lineHeight: '1.4' }}>
-            Prenez en photo une recette écrite à la main, imprimée ou capturez un écran. L'IA de MarmiCout en extraira les ingrédients, les quantités et les étapes.
+            Prenez en photo une recette papier, ou importez une image, un fichier texte (.txt) ou un document Word (.docx) contenant votre recette. MarmiCout en extraira automatiquement les ingrédients et les étapes.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxWidth: '320px', margin: '0 auto' }}>
@@ -299,10 +534,10 @@ export const RecipeScanner: React.FC<RecipeScannerProps> = ({ onClose, onSave, p
               Prendre une photo de la recette
             </button>
 
-            <label className="btn btn-secondary" style={{ height: '50px', cursor: 'pointer', lineHeight: '26px' }}>
-              <Upload size={18} style={{ marginRight: '6px' }} />
-              Importer une image ou capture
-              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
+            <label className="btn btn-secondary" style={{ height: '50px', cursor: 'pointer', lineHeight: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <Upload size={18} />
+              <span>Importer Photo, Txt ou Word (.docx)</span>
+              <input type="file" accept="image/*,.txt,.docx,.doc" style={{ display: 'none' }} onChange={handleFileChange} />
             </label>
           </div>
 
