@@ -16,12 +16,15 @@ import {
   Camera,
   AlertTriangle,
   Check,
-  ClipboardList
+  ClipboardList,
+  Download,
+  ExternalLink
 } from 'lucide-react';
 import { dbService, convertUnits } from '../services/db';
 import { Product, Recipe, RecipeIngredient, RecipePackaging } from '../types';
 import { Drawer } from './Drawer';
 import { RecipeScanner } from './RecipeScanner';
+import { RecipeImporter } from './RecipeImporter';
 
 interface RecipesProps {
   initialTriggerAdd?: boolean;
@@ -50,6 +53,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
   const [formYieldUnit, setFormYieldUnit] = useState('pièce');
   const [formPrepTime, setFormPrepTime] = useState<number | undefined>(30);
   const [formUtensilsNotes, setFormUtensilsNotes] = useState('');
+  const [formInstructions, setFormInstructions] = useState('');
   const [formNotes, setFormNotes] = useState('');
   const [formIsActive, setFormIsActive] = useState(true);
 
@@ -71,8 +75,68 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
 
   // États de l'import par photo et portions cible
   const [isScanViewOpen, setIsScanViewOpen] = useState(false);
+  const [isImportViewOpen, setIsImportViewOpen] = useState(false);
   const [portionsCible, setPortionsCible] = useState(1);
   const [copiedCourses, setCopiedCourses] = useState(false);
+
+  const handleImportedRecipe = (recipe: Recipe, importedIngredients: Omit<RecipeIngredient, 'id' | 'recipeId'>[]) => {
+    setIsImportViewOpen(false);
+    
+    setEditingRecipe(null);
+    setFormName(recipe.name);
+    setFormCategory(settings.recipeCategories.includes(recipe.category) ? recipe.category : settings.recipeCategories[0]);
+    setFormDescription(recipe.description);
+    setFormPortions(recipe.portions);
+    setFormYieldQty(recipe.yieldQty);
+    setFormYieldUnit(recipe.yieldUnit);
+    setFormPrepTime(recipe.prepTimeMinutes || 30);
+    setFormUtensilsNotes(recipe.utensilsNotes || '');
+    setFormInstructions(recipe.instructions || '');
+    setFormNotes(recipe.notes || '');
+    setFormIsActive(recipe.isActive);
+
+    // Mettre à jour l'editing recipe avec l'externalId et les autres métadonnées de l'API
+    setEditingRecipe({
+      id: '',
+      name: recipe.name,
+      category: recipe.category,
+      description: recipe.description,
+      portions: recipe.portions,
+      yieldQty: recipe.yieldQty,
+      yieldUnit: recipe.yieldUnit,
+      stock: 0,
+      prepTimeMinutes: recipe.prepTimeMinutes,
+      utensilsNotes: recipe.utensilsNotes,
+      notes: recipe.notes,
+      isActive: recipe.isActive,
+      photo: recipe.photo,
+      sourceImage: recipe.sourceImage,
+      externalId: recipe.externalId,
+      videoUrl: recipe.videoUrl,
+      sourceUrl: recipe.sourceUrl,
+      rawExtractedText: recipe.rawExtractedText
+    });
+
+    // Liaison floue intelligente avec les produits existants du stock
+    const mappedIngredients = importedIngredients.map(ing => {
+      const normalName = ing.customName?.toLowerCase() || '';
+      const matched = products.find(p => {
+        const prodName = p.name.toLowerCase();
+        return prodName.includes(normalName) || normalName.includes(prodName);
+      });
+      
+      return {
+        ...ing,
+        productId: matched ? matched.id : undefined,
+        customName: matched ? undefined : ing.customName,
+        customCostPerUnit: matched ? undefined : 0
+      };
+    });
+
+    setFormIngredients(mappedIngredients);
+    setFormPackagings([]);
+    setIsFormOpen(true);
+  };
 
   const loadData = () => {
     setRecipes(dbService.getRecipes());
@@ -137,6 +201,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
     setFormYieldUnit('pièce');
     setFormPrepTime(30);
     setFormUtensilsNotes('');
+    setFormInstructions('');
     setFormNotes('');
     setFormIsActive(true);
     setFormIngredients([]);
@@ -156,6 +221,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
     setFormYieldUnit(recipe.yieldUnit);
     setFormPrepTime(recipe.prepTimeMinutes);
     setFormUtensilsNotes(recipe.utensilsNotes || '');
+    setFormInstructions(recipe.instructions || '');
     setFormNotes(recipe.notes || '');
     setFormIsActive(recipe.isActive);
 
@@ -250,7 +316,10 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
       return;
     }
 
-    const recipeId = editingRecipe ? editingRecipe.id : 'R_' + Date.now();
+    const recipeId = (editingRecipe && editingRecipe.id) 
+      ? editingRecipe.id 
+      : (editingRecipe?.externalId ? 'R_API_' + editingRecipe.externalId : 'R_' + Date.now());
+
     const newRecipe: Recipe = {
       id: recipeId,
       name: formName.trim(),
@@ -262,8 +331,16 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
       stock: editingRecipe ? editingRecipe.stock : 0, // Conserver le stock produit fini existant
       prepTimeMinutes: formPrepTime,
       utensilsNotes: formUtensilsNotes.trim() || undefined,
+      instructions: formInstructions.trim() || undefined,
       notes: formNotes.trim() || undefined,
-      isActive: formIsActive
+      isActive: formIsActive,
+      // Métadonnées d'importation
+      photo: editingRecipe?.photo || undefined,
+      sourceImage: editingRecipe?.sourceImage || undefined,
+      externalId: editingRecipe?.externalId || undefined,
+      videoUrl: editingRecipe?.videoUrl || undefined,
+      sourceUrl: editingRecipe?.sourceUrl || undefined,
+      rawExtractedText: editingRecipe?.rawExtractedText || undefined
     };
 
     // Nettoyer les ingrédients pour n'enregistrer que les champs pertinents
@@ -318,6 +395,16 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
     );
   }
 
+  if (isImportViewOpen) {
+    return (
+      <RecipeImporter
+        onClose={() => setIsImportViewOpen(false)}
+        onImport={handleImportedRecipe}
+        existingRecipes={recipes}
+      />
+    );
+  }
+
   return (
     <div>
       {/* En-tête */}
@@ -327,6 +414,10 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
           <p className="page-subtitle">Calculez le coût exact de vos plats et déterminez vos prix de vente conseillés</p>
         </div>
         <div className="actions-group" style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn btn-secondary" onClick={() => setIsImportViewOpen(true)}>
+            <Download size={18} style={{ color: 'var(--color-primary)' }} />
+            Importer une recette
+          </button>
           <button className="btn btn-secondary" onClick={() => setIsScanViewOpen(true)}>
             <Camera size={18} style={{ color: 'var(--color-primary)' }} />
             Numériser une recette
@@ -734,8 +825,19 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
 
           {/* MATÉRIEL ET NOTES DE FABRICATION */}
           <h4 style={{ fontSize: '14px', fontWeight: '700', borderBottom: '1px solid var(--color-border)', paddingBottom: '6px', marginTop: '24px', marginBottom: '12px' }}>
-            Ustentiles & Fabrication (Informatif)
+            Étapes & Fabrication (Informatif)
           </h4>
+
+          <div className="form-group">
+            <label className="form-label">Instructions / Étapes de préparation</label>
+            <textarea
+              className="form-input"
+              style={{ height: '140px' }}
+              placeholder="Saisissez les étapes de préparation de la recette..."
+              value={formInstructions}
+              onChange={(e) => setFormInstructions(e.target.value)}
+            />
+          </div>
 
           <div className="form-group">
             <label className="form-label">Ustensiles requis</label>
@@ -1143,6 +1245,47 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                 </div>
               );
             })()}
+
+            {/* INSTRUCTIONS DE PREPARATION */}
+            {selectedRecipeDetails.instructions && (
+              <div style={{ marginBottom: '20px' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <List size={16} />
+                  Préparation / Étapes
+                </h4>
+                <div style={{ padding: '12px', backgroundColor: 'var(--color-light)', borderRadius: 'var(--radius-md)', fontSize: '13px', lineHeight: '1.5', whiteSpace: 'pre-line', border: '1px solid var(--color-border)' }}>
+                  {selectedRecipeDetails.instructions}
+                </div>
+              </div>
+            )}
+
+            {/* LIENS EXTERNES IMPORTATION */}
+            {(selectedRecipeDetails.videoUrl || selectedRecipeDetails.sourceUrl) && (
+              <div style={{ marginBottom: '20px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {selectedRecipeDetails.videoUrl && (
+                  <a 
+                    href={selectedRecipeDetails.videoUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="badge badge-danger" 
+                    style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '4px 8px' }}
+                  >
+                    <ExternalLink size={12} /> Vidéo YouTube
+                  </a>
+                )}
+                {selectedRecipeDetails.sourceUrl && (
+                  <a 
+                    href={selectedRecipeDetails.sourceUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="badge badge-info" 
+                    style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '4px 8px' }}
+                  >
+                    <ExternalLink size={12} /> Site source
+                  </a>
+                )}
+              </div>
+            )}
 
             {/* USTENSILLES & CONSEILS */}
             {selectedRecipeDetails.utensilsNotes && (

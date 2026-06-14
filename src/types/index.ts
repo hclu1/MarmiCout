@@ -74,6 +74,10 @@ export interface Recipe {
   originalPortions?: number; // Nombre de portions de la recette d'origine
   sourceImage?: string; // Image base64 ou URL de la recette photo
   rawExtractedText?: string; // Texte brut extrait
+  instructions?: string; // Étapes de préparation / instructions
+  externalId?: string; // ID externe (ex: de TheMealDB)
+  videoUrl?: string; // Lien vidéo (ex: YouTube)
+  sourceUrl?: string; // Lien source original
 }
 
 export interface Production {
