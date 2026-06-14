@@ -305,7 +305,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
         const prod = products.find(p => p.id === value);
         updated[index] = {
           ...updated[index],
-          productId: value,
+          productId: value as string,
           customName: undefined,
           customCostPerUnit: undefined,
           unit: prod ? (prod.unit === 'kg' ? 'g' : prod.unit) : updated[index].unit
@@ -338,7 +338,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
     updated[index] = { ...updated[index], [field]: value };
 
     // Si on tape un nom qui matche un produit, on charge son prix moyen
-    if (field === 'name') {
+    if (field === 'name' && typeof value === 'string') {
       const prod = products.find(p => p.name.toLowerCase() === value.toLowerCase() || p.id === value);
       if (prod) {
         updated[index].costPerUnit = prod.avgPurchasePrice;

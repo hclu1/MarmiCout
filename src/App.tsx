@@ -92,28 +92,28 @@ function App() {
       case 'Produits':
         return (
           <Products
-            initialTriggerAdd={extra?.triggerAdd}
+            initialTriggerAdd={extra?.triggerAdd as any}
             onNavigate={handleNavigate}
           />
         );
       case 'Achats':
         return (
           <Purchases
-            initialTriggerScan={extra?.triggerScan}
-            initialPrefillProductId={extra?.prefillProductId}
+            initialTriggerScan={extra?.triggerScan as any}
+            initialPrefillProductId={extra?.prefillProductId as any}
           />
         );
       case 'Recettes':
         return (
           <Recipes
-            initialTriggerAdd={extra?.triggerAdd}
-            initialViewRecipeId={extra?.viewRecipeId}
+            initialTriggerAdd={extra?.triggerAdd as any}
+            initialViewRecipeId={extra?.viewRecipeId as any}
           />
         );
       case 'Production':
-        return <Productions initialTriggerAdd={extra?.triggerAdd} />;
+        return <Productions initialTriggerAdd={extra?.triggerAdd as any} />;
       case 'Ventes':
-        return <Sales initialTriggerAdd={extra?.triggerAdd} />;
+        return <Sales initialTriggerAdd={extra?.triggerAdd as any} />;
       case 'Magasins':
         return <Stores />;
       case 'Paramètres':
