@@ -59,17 +59,19 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
     setScanMessage('Recherche dans la base locale...');
     
     try {
-      const result = await barcodeLookupService.lookupBarcode(barcode);
+      // 1. Recherche locale d'abord
+      const localProduct = dbService.getProductByBarcode(barcode);
       
-      if (result.state === 'local_found') {
+      if (localProduct) {
         setLookupState('found');
-        setFoundProductName(result.localProduct?.name || '');
-        setScanMessage(`Produit trouvé (local) : ${result.localProduct?.name}`);
+        setFoundProductName(localProduct.name || '');
+        setScanMessage(`Produit trouvé (local) : ${localProduct.name}`);
         setTimeout(() => {
-          onScan(barcode, result);
+          onScan(barcode, { state: 'local_found', localProduct });
           onClose();
         }, 1000);
       } else {
+        // 2. Si non trouvé localement, recherche externe
         setLookupState('external_lookup');
         setScanMessage('Recherche externe (Open Food Facts)...');
         

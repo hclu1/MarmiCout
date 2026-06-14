@@ -35,11 +35,7 @@ class OpenFoodFactsProvider implements BarcodeProvider {
       // API v2 de Open Food Facts avec suffixe .json
       const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`;
       
-      const res = await fetch(url, {
-        headers: {
-          'User-Agent': 'MarmiCout - Web - Version 1.0 - https://github.com/hclu1/MarmiCout'
-        }
-      });
+      const res = await fetch(url);
       
       if (!res.ok) {
         if (res.status === 404) return null;
