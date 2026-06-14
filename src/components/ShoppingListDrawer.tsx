@@ -133,17 +133,7 @@ export const ShoppingListDrawer: React.FC<ShoppingListDrawerProps> = ({
     // Sort: most expensive first in toOrder
     toOrderItems.sort((a, b) => b.estimatedCost - a.estimatedCost);
 
-    const customItemsArray: CustomItem[] = [];
-    for (const [, val] of customNeeds.entries()) {
-      customItemsArray.push({
-        name: val.fromRecipes[0] ? val.fromRecipes[0] : '',
-        ...val,
-        name: Array.from(customNeeds.entries()).find(([k, v]) => v === val)?.[0]
-          ?.replace(/_[^_]+$/, '') || ''
-      });
-    }
-
-    // Rebuild custom items properly
+    // Build custom items from the map keys
     const customItemsFinal: CustomItem[] = [];
     for (const [key, val] of customNeeds.entries()) {
       const name = key.replace(/_[^_]+$/, '');
