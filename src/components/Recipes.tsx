@@ -18,13 +18,16 @@ import {
   Check,
   ClipboardList,
   Download,
-  ExternalLink
+  ExternalLink,
+  ShoppingCart,
+  X
 } from 'lucide-react';
 import { dbService, convertUnits } from '../services/db';
 import { Product, Recipe, RecipeIngredient, RecipePackaging } from '../types';
 import { Drawer } from './Drawer';
 import { RecipeScanner } from './RecipeScanner';
 import { RecipeImporter } from './RecipeImporter';
+import { ShoppingListDrawer } from './ShoppingListDrawer';
 
 interface RecipesProps {
   initialTriggerAdd?: boolean;
@@ -78,6 +81,44 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
   const [isImportViewOpen, setIsImportViewOpen] = useState(false);
   const [portionsCible, setPortionsCible] = useState(1);
   const [copiedCourses, setCopiedCourses] = useState(false);
+
+  // États du mode Planification / Liste de courses
+  const [isPlanningMode, setIsPlanningMode] = useState(false);
+  const [planningSelections, setPlanningSelections] = useState<Map<string, number>>(new Map());
+  const [isShoppingListOpen, setIsShoppingListOpen] = useState(false);
+
+  const toggleRecipeSelection = (recipe: Recipe) => {
+    setPlanningSelections(prev => {
+      const next = new Map(prev);
+      if (next.has(recipe.id)) {
+        next.delete(recipe.id);
+      } else {
+        next.set(recipe.id, recipe.portions);
+      }
+      return next;
+    });
+  };
+
+  const updatePlanningPortions = (recipeId: string, portions: number) => {
+    setPlanningSelections(prev => {
+      const next = new Map(prev);
+      next.set(recipeId, Math.max(1, portions));
+      return next;
+    });
+  };
+
+  const exitPlanningMode = () => {
+    setIsPlanningMode(false);
+    setPlanningSelections(new Map());
+    setIsShoppingListOpen(false);
+  };
+
+  const planningSelectionsArray = Array.from(planningSelections.entries())
+    .map(([id, portions]) => {
+      const recipe = recipes.find(r => r.id === id);
+      return recipe ? { recipe, portions } : null;
+    })
+    .filter((x): x is { recipe: Recipe; portions: number } => x !== null);
 
   const handleImportedRecipe = (recipe: Recipe, importedIngredients: Omit<RecipeIngredient, 'id' | 'recipeId'>[]) => {
     setIsImportViewOpen(false);
@@ -411,21 +452,39 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
       <div className="page-header">
         <div>
           <h1 className="page-title">Recettes & Coûts de Revient</h1>
-          <p className="page-subtitle">Calculez le coût exact de vos plats et déterminez vos prix de vente conseillés</p>
+          <p className="page-subtitle">
+            {isPlanningMode
+              ? `Mode planification — ${planningSelections.size} recette(s) sélectionnée(s)`
+              : 'Calculez le coût exact de vos plats et déterminez vos prix de vente conseillés'
+            }
+          </p>
         </div>
-        <div className="actions-group" style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn btn-secondary" onClick={() => setIsImportViewOpen(true)}>
-            <Download size={18} style={{ color: 'var(--color-primary)' }} />
-            Importer une recette
-          </button>
-          <button className="btn btn-secondary" onClick={() => setIsScanViewOpen(true)}>
-            <Camera size={18} style={{ color: 'var(--color-primary)' }} />
-            Numériser une recette
-          </button>
-          <button className="btn btn-primary" onClick={handleOpenAddForm}>
-            <Plus size={18} />
-            Créer une recette
-          </button>
+        <div className="actions-group" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {isPlanningMode ? (
+            <button className="btn btn-secondary" onClick={exitPlanningMode}>
+              <X size={18} />
+              Quitter la planification
+            </button>
+          ) : (
+            <>
+              <button className="btn btn-secondary" onClick={() => setIsImportViewOpen(true)}>
+                <Download size={18} style={{ color: 'var(--color-primary)' }} />
+                Importer une recette
+              </button>
+              <button className="btn btn-secondary" onClick={() => setIsScanViewOpen(true)}>
+                <Camera size={18} style={{ color: 'var(--color-primary)' }} />
+                Numériser une recette
+              </button>
+              <button className="btn btn-secondary" style={{ color: 'var(--color-primary)', fontWeight: '600' }} onClick={() => setIsPlanningMode(true)}>
+                <ShoppingCart size={18} style={{ color: 'var(--color-primary)' }} />
+                Liste de courses
+              </button>
+              <button className="btn btn-primary" onClick={handleOpenAddForm}>
+                <Plus size={18} />
+                Créer une recette
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -464,7 +523,8 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
         <div className="grid-cols-1-2-3">
           {filteredRecipes.map(r => {
             const costInfo = dbService.calculateRecipeCost(r.id);
-            const isHighMargin = costInfo.marginPercent >= settings.defaultTargetMargin;
+            const isSelected = planningSelections.has(r.id);
+            const selectedPortions = planningSelections.get(r.id) ?? r.portions;
             
             return (
               <div 
@@ -474,11 +534,71 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                   display: 'flex', 
                   flexDirection: 'column', 
                   justifyContent: 'space-between',
-                  cursor: 'pointer',
-                  borderTop: `4px solid ${costInfo.marginPercent < 45 ? 'var(--color-danger)' : 'var(--color-secondary)'}`
+                  cursor: isPlanningMode ? 'default' : 'pointer',
+                  borderTop: `4px solid ${isPlanningMode && isSelected ? 'var(--color-primary)' : costInfo.marginPercent < 45 ? 'var(--color-danger)' : 'var(--color-secondary)'}`,
+                  outline: isPlanningMode && isSelected ? '2px solid var(--color-primary)' : 'none',
+                  outlineOffset: '-2px',
+                  transition: 'outline 0.15s ease'
                 }}
-                onClick={() => handleOpenDetails(r)}
+                onClick={() => !isPlanningMode && handleOpenDetails(r)}
               >
+                {/* Ligne de sélection en mode Planification */}
+                {isPlanningMode && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 0 10px',
+                      borderBottom: '1px dashed var(--color-border)',
+                      marginBottom: '10px'
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleRecipeSelection(r)}
+                      style={{
+                        width: '26px', height: '26px',
+                        borderRadius: '6px',
+                        border: `2px solid ${isSelected ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                        backgroundColor: isSelected ? 'var(--color-primary)' : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {isSelected && <Check size={14} style={{ color: '#fff' }} />}
+                    </button>
+                    <span style={{ fontSize: '12px', fontWeight: '600', color: isSelected ? 'var(--color-primary)' : 'var(--color-dark-light)', flex: 1 }}>
+                      {isSelected ? 'Sélectionnée' : 'Cliquer pour sélectionner'}
+                    </span>
+                    {isSelected && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--color-dark-light)' }}>Portions :</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={selectedPortions}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => updatePlanningPortions(r.id, Number(e.target.value))}
+                          style={{
+                            width: '54px',
+                            height: '28px',
+                            border: '1px solid var(--color-primary)',
+                            borderRadius: '4px',
+                            textAlign: 'center',
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: 'var(--color-primary)',
+                            padding: '0 4px'
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <span className="badge badge-info">{r.category}</span>
@@ -521,6 +641,63 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
           })}
         </div>
       )}
+
+      {/* Barre flottante de planification */}
+      {isPlanningMode && (
+        <div style={{
+          position: 'fixed',
+          bottom: '24px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 800,
+          backgroundColor: planningSelections.size > 0 ? 'var(--color-primary)' : 'var(--color-dark)',
+          color: '#fff',
+          borderRadius: '50px',
+          padding: '14px 28px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+          transition: 'background-color 0.2s ease',
+          minWidth: '300px',
+          justifyContent: 'space-between'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <ShoppingCart size={20} />
+            <span style={{ fontWeight: '600', fontSize: '14px' }}>
+              {planningSelections.size === 0
+                ? 'Sélectionnez des recettes'
+                : `${planningSelections.size} recette(s) · ${planningSelectionsArray.reduce((s, x) => s + x.portions, 0)} portions`
+              }
+            </span>
+          </div>
+          <button
+            type="button"
+            disabled={planningSelections.size === 0}
+            onClick={() => setIsShoppingListOpen(true)}
+            style={{
+              backgroundColor: planningSelections.size > 0 ? '#fff' : 'rgba(255,255,255,0.3)',
+              color: planningSelections.size > 0 ? 'var(--color-primary)' : '#fff',
+              border: 'none',
+              borderRadius: '50px',
+              padding: '8px 18px',
+              fontWeight: '700',
+              fontSize: '13px',
+              cursor: planningSelections.size > 0 ? 'pointer' : 'not-allowed',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            Générer la liste →
+          </button>
+        </div>
+      )}
+
+      {/* Drawer Liste de courses */}
+      <ShoppingListDrawer
+        selections={planningSelectionsArray}
+        isOpen={isShoppingListOpen}
+        onClose={() => setIsShoppingListOpen(false)}
+      />
 
       {/* --- DRAWER FORMULAIRE (AJOUT / MODIFICATION DE RECETTE) --- */}
       <Drawer
