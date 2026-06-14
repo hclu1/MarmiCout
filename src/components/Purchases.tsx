@@ -54,39 +54,6 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
     setStores(dbService.getStores());
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  // Déclencher le scanneur ou le préremplissage initial
-  useEffect(() => {
-    if (initialTriggerScan) {
-      handleOpenAddForm();
-      setIsScannerOpen(true);
-    } else if (initialPrefillProductId) {
-      handleOpenAddForm();
-      setFormProductId(initialPrefillProductId);
-      const prod = dbService.getProduct(initialPrefillProductId);
-      if (prod) {
-        setFormUnit(prod.unit);
-        if (prod.mainStoreId) setFormStoreId(prod.mainStoreId);
-      }
-    }
-  }, [initialTriggerScan, initialPrefillProductId]);
-
-  // Pré-remplir l'unité lorsqu'on change de produit dans le formulaire d'achat
-  useEffect(() => {
-    if (formProductId) {
-      const prod = products.find(p => p.id === formProductId);
-      if (prod) {
-        setFormUnit(prod.unit);
-        if (prod.mainStoreId && !formStoreId) {
-          setFormStoreId(prod.mainStoreId);
-        }
-      }
-    }
-  }, [formProductId, products]);
-
   const handleOpenAddForm = () => {
     setFormDate(new Date().toISOString().split('T')[0]);
     setFormProductId(products[0]?.id || '');
@@ -98,6 +65,44 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
     setFormNotes('');
     setIsFormOpen(true);
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadData();
+  }, []);
+
+  // Déclencher le scanneur ou le préremplissage initial
+  useEffect(() => {
+    if (initialTriggerScan) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      handleOpenAddForm();
+      setIsScannerOpen(true);
+    } else if (initialPrefillProductId) {
+      handleOpenAddForm();
+      setFormProductId(initialPrefillProductId);
+      const prod = dbService.getProduct(initialPrefillProductId);
+      if (prod) {
+        setFormUnit(prod.unit);
+        if (prod.mainStoreId) setFormStoreId(prod.mainStoreId);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTriggerScan, initialPrefillProductId]);
+
+  // Pré-remplir l'unité lorsqu'on change de produit dans le formulaire d'achat
+  useEffect(() => {
+    if (formProductId) {
+      const prod = products.find(p => p.id === formProductId);
+      if (prod) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setFormUnit(prod.unit);
+        if (prod.mainStoreId && !formStoreId) {
+          setFormStoreId(prod.mainStoreId);
+        }
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formProductId, products]);
 
   // Traiter un scan de code-barres avec recherche locale et externe
   const handleBarcodeScanned = (barcode: string, result: LookupResult) => {

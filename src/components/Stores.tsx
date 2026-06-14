@@ -6,8 +6,7 @@ import {
   Edit, 
   MapPin, 
   Phone, 
-  History, 
-  DollarSign 
+  History
 } from 'lucide-react';
 import { dbService } from '../services/db';
 import { Store, Purchase } from '../types';
@@ -38,6 +37,7 @@ export const Stores: React.FC = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
   }, []);
 

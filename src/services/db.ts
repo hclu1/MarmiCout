@@ -308,7 +308,7 @@ export const dbService = {
       const qtyInProductUnit = convertUnits(purchase.qty, purchase.unit, product.unit);
 
       // Calcul du nouveau PMP (Prix Moyen Pondéré)
-      let newAvgPrice = oldAvgPrice;
+      let newAvgPrice: number;
       if (oldStock <= 0) {
         newAvgPrice = purchase.pricePaid / qtyInProductUnit;
       } else {
@@ -688,7 +688,7 @@ export const dbService = {
 
   // --- EXPORTATION ET IMPORTATION CSV (GOOGLE SHEETS COMPATIBLE) ---
   exportToCSV(tableName: keyof typeof KEYS): string {
-    const data = getTable<any>(KEYS[tableName]);
+    const data = getTable<Record<string, unknown>>(KEYS[tableName]);
     if (data.length === 0) return '';
 
     // Déterminer les colonnes (les clés du premier objet)
@@ -734,7 +734,7 @@ export const dbService = {
       
       const headers = firstLine.split(sep).map(h => h.trim().replace(/^"|"$/g, ''));
       
-      const parsedData: any[] = [];
+      const parsedData: Record<string, unknown>[] = [];
 
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i];
@@ -750,17 +750,20 @@ export const dbService = {
 
         cells = cells.map(c => c.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
 
-        const obj: any = {};
+        const obj: Record<string, unknown> = {};
         headers.forEach((header, idx) => {
-          let cellValue: any = cells[idx] || '';
-          
+          const rawCell = cells[idx] || '';
+          let cellValue: string | number | boolean;
+
           // Typage intelligent
-          if (cellValue === 'true') cellValue = true;
-          else if (cellValue === 'false') cellValue = false;
-          else if (cellValue !== '' && !isNaN(Number(cellValue.replace(',', '.')))) {
-            cellValue = Number(cellValue.replace(',', '.'));
+          if (rawCell === 'true') cellValue = true;
+          else if (rawCell === 'false') cellValue = false;
+          else if (rawCell !== '' && !isNaN(Number(rawCell.replace(',', '.')))) {
+            cellValue = Number(rawCell.replace(',', '.'));
+          } else {
+            cellValue = rawCell;
           }
-          
+
           obj[header] = cellValue;
         });
 
@@ -771,7 +774,7 @@ export const dbService = {
 
       if (parsedData.length === 0) return { success: false, count: 0, error: 'Aucune ligne valide avec une colonne "id" n\'a été trouvée.' };
 
-      const existingData = merge ? getTable<any>(KEYS[tableName]) : [];
+      const existingData = merge ? getTable<Record<string, unknown>>(KEYS[tableName]) : [];
       
       // Fusionner les données (écraser par ID)
       const mergedMap = new Map();
@@ -782,8 +785,8 @@ export const dbService = {
       saveTable(KEYS[tableName], finalData);
 
       return { success: true, count: parsedData.length };
-    } catch (err: any) {
-      return { success: false, count: 0, error: err.message || 'Erreur inconnue de lecture CSV' };
+    } catch (err: unknown) {
+      return { success: false, count: 0, error: (err as Error).message || 'Erreur inconnue de lecture CSV' };
     }
   }
 };

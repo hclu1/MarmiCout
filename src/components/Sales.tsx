@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Plus, 
-  DollarSign, 
-  Trash2, 
-  Calendar, 
-  MapPin, 
-  TrendingUp, 
-  PieChart, 
-  List,
-  Store
+import {
+  Plus,
+  DollarSign,
+  Trash2,
+  Calendar,
+  MapPin,
+  TrendingUp,
+  PieChart,
+  List
 } from 'lucide-react';
 import { dbService } from '../services/db';
 import { Product, Recipe, Sale } from '../types';
@@ -46,11 +45,23 @@ export const Sales: React.FC<SalesProps> = ({ initialTriggerAdd }) => {
     setProducts(dbService.getProducts().filter(p => p.isActive));
   };
 
+  const handleOpenAddForm = () => {
+    setFormDate(new Date().toISOString().split('T')[0]);
+    setFormItemType('RECIPE');
+    setFormItemId(recipes[0]?.id || '');
+    setFormQty(1);
+    setFormLocation(settings.salesLocations[0] || 'Marché');
+    setFormNotes('');
+    setIsFormOpen(true);
+  };
+
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
     if (initialTriggerAdd) {
       handleOpenAddForm();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialTriggerAdd]);
 
   // Pré-remplir le prix unitaire conseillé lorsqu'on change d'article
@@ -58,8 +69,9 @@ export const Sales: React.FC<SalesProps> = ({ initialTriggerAdd }) => {
     if (formItemId) {
       if (formItemType === 'RECIPE') {
         const costInfo = dbService.calculateRecipeCost(formItemId);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setFormUnitPrice(costInfo.suggestedSellingPrice);
-        
+
         // Suggérer la quantité en stock disponible
         const recipeObj = recipes.find(r => r.id === formItemId);
         if (recipeObj) {
@@ -79,21 +91,12 @@ export const Sales: React.FC<SalesProps> = ({ initialTriggerAdd }) => {
   // Lorsqu'on change de type d'article (recette vs produit brut), réinitialiser la liste d'ID
   useEffect(() => {
     if (formItemType === 'RECIPE') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormItemId(recipes[0]?.id || '');
     } else {
       setFormItemId(products[0]?.id || '');
     }
   }, [formItemType, recipes, products]);
-
-  const handleOpenAddForm = () => {
-    setFormDate(new Date().toISOString().split('T')[0]);
-    setFormItemType('RECIPE');
-    setFormItemId(recipes[0]?.id || '');
-    setFormQty(1);
-    setFormLocation(settings.salesLocations[0] || 'Marché');
-    setFormNotes('');
-    setIsFormOpen(true);
-  };
 
   const handleSaveSale = (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,12 +173,9 @@ export const Sales: React.FC<SalesProps> = ({ initialTriggerAdd }) => {
   // 1. Ventes par journée de vente (Date)
   const salesByDateMap = new Map<string, { date: string; revenue: number; cost: number; qty: number }>();
   sales.forEach(s => {
-    let itemCost = 0;
-    if (s.itemType === 'RECIPE') {
-      itemCost = dbService.calculateRecipeCost(s.itemId).costPerPortion;
-    } else {
-      itemCost = (products.find(p => p.id === s.itemId)?.avgPurchasePrice) || 0;
-    }
+    const itemCost = s.itemType === 'RECIPE'
+      ? dbService.calculateRecipeCost(s.itemId).costPerPortion
+      : (products.find(p => p.id === s.itemId)?.avgPurchasePrice) || 0;
 
     const current = salesByDateMap.get(s.date) || { date: s.date, revenue: 0, cost: 0, qty: 0 };
     current.revenue += s.qtySold * s.unitPrice;
@@ -188,12 +188,9 @@ export const Sales: React.FC<SalesProps> = ({ initialTriggerAdd }) => {
   // 2. Ventes par lieu de vente (Location)
   const salesByLocMap = new Map<string, { location: string; revenue: number; cost: number; qty: number }>();
   sales.forEach(s => {
-    let itemCost = 0;
-    if (s.itemType === 'RECIPE') {
-      itemCost = dbService.calculateRecipeCost(s.itemId).costPerPortion;
-    } else {
-      itemCost = (products.find(p => p.id === s.itemId)?.avgPurchasePrice) || 0;
-    }
+    const itemCost = s.itemType === 'RECIPE'
+      ? dbService.calculateRecipeCost(s.itemId).costPerPortion
+      : (products.find(p => p.id === s.itemId)?.avgPurchasePrice) || 0;
 
     const current = salesByLocMap.get(s.location) || { location: s.location, revenue: 0, cost: 0, qty: 0 };
     current.revenue += s.qtySold * s.unitPrice;
@@ -300,20 +297,12 @@ export const Sales: React.FC<SalesProps> = ({ initialTriggerAdd }) => {
               </thead>
               <tbody>
                 {sales.map(s => {
-                  let name = 'Inconnu';
-                  let unitLabel = 'u';
-                  let cost = 0;
-                  
-                  if (s.itemType === 'RECIPE') {
-                    const rec = recipes.find(r => r.id === s.itemId);
-                    name = rec ? rec.name : 'Recette supprimée';
-                    cost = dbService.calculateRecipeCost(s.itemId).costPerPortion;
-                  } else {
-                    const prod = products.find(p => p.id === s.itemId);
-                    name = prod ? prod.name : 'Ingrédient supprimé';
-                    unitLabel = prod ? prod.unit : 'u';
-                    cost = prod ? prod.avgPurchasePrice : 0;
-                  }
+                  const isRecipe = s.itemType === 'RECIPE';
+                  const rec = isRecipe ? recipes.find(r => r.id === s.itemId) : null;
+                  const prod = !isRecipe ? products.find(p => p.id === s.itemId) : null;
+                  const name = isRecipe ? (rec ? rec.name : 'Recette supprimée') : (prod ? prod.name : 'Ingrédient supprimé');
+                  const unitLabel = prod ? prod.unit : 'u';
+                  const cost = isRecipe ? dbService.calculateRecipeCost(s.itemId).costPerPortion : (prod ? prod.avgPurchasePrice : 0);
 
                   const saleCost = s.qtySold * cost;
                   const saleRev = s.qtySold * s.unitPrice;

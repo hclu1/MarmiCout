@@ -2,6 +2,8 @@ import { Recipe, RecipeIngredient } from '../types';
 
 const BASE_URL = 'https://www.themealdb.com/api/json/v1/1/';
 
+type MealSummary = Record<string, string>;
+
 export interface MappedRecipeResult {
   recipe: Recipe;
   ingredients: Omit<RecipeIngredient, 'id' | 'recipeId'>[];
@@ -51,7 +53,7 @@ export function parseMeasure(measureStr: string): { qty: number; unit: string; d
     unit = 'sachet';
   } else {
     // Extraction de l'unité textuelle non standard (ex. tasse, cuillère)
-    const nonDigits = cleaned.replace(/[\d,.\/\s]+/g, '').trim();
+    const nonDigits = cleaned.replace(/[\d,./\s]+/g, '').trim();
     if (
       nonDigits && 
       nonDigits !== 'whole' && 
@@ -286,7 +288,7 @@ export async function translateIngredients(ingredients: Omit<RecipeIngredient, '
 /**
  * Transforme le modèle brut TheMealDB vers le format interne de l'application
  */
-export function mapTheMealDBToRecipe(meal: any): MappedRecipeResult {
+export function mapTheMealDBToRecipe(meal: Record<string, string>): MappedRecipeResult {
   const recipeId = 'R_API_' + meal.idMeal;
 
   const recipe: Recipe = {
@@ -346,49 +348,49 @@ export const recipeImportService = {
   /**
    * Recherche des recettes par mot-clé (nom)
    */
-  async searchRecipesByName(query: string): Promise<any[]> {
+  async searchRecipesByName(query: string): Promise<MealSummary[]> {
     try {
       const res = await fetch(`${BASE_URL}search.php?s=${encodeURIComponent(query)}`);
       const data = await res.json();
       return data.meals || [];
     } catch (err) {
       console.error('Erreur searchRecipesByName:', err);
-      throw new Error("Impossible de se connecter à TheMealDB.");
+      throw new Error("Impossible de se connecter à TheMealDB.", { cause: err });
     }
   },
 
   /**
    * Récupère le détail d'une recette par son identifiant unique
    */
-  async getRecipeDetailsById(idMeal: string): Promise<any | null> {
+  async getRecipeDetailsById(idMeal: string): Promise<MealSummary | null> {
     try {
       const res = await fetch(`${BASE_URL}lookup.php?i=${idMeal}`);
       const data = await res.json();
       return data.meals && data.meals.length > 0 ? data.meals[0] : null;
     } catch (err) {
       console.error('Erreur getRecipeDetailsById:', err);
-      throw new Error("Impossible de charger les détails de la recette.");
+      throw new Error("Impossible de charger les détails de la recette.", { cause: err });
     }
   },
 
   /**
    * Obtient une recette aléatoire
    */
-  async getRandomRecipe(): Promise<any | null> {
+  async getRandomRecipe(): Promise<MealSummary | null> {
     try {
       const res = await fetch(`${BASE_URL}random.php`);
       const data = await res.json();
       return data.meals && data.meals.length > 0 ? data.meals[0] : null;
     } catch (err) {
       console.error('Erreur getRandomRecipe:', err);
-      throw new Error("Erreur de récupération d'une recette aléatoire.");
+      throw new Error("Erreur de récupération d'une recette aléatoire.", { cause: err });
     }
   },
 
   /**
    * Récupère toutes les catégories disponibles
    */
-  async getCategories(): Promise<any[]> {
+  async getCategories(): Promise<MealSummary[]> {
     try {
       const res = await fetch(`${BASE_URL}categories.php`);
       const data = await res.json();
@@ -406,7 +408,7 @@ export const recipeImportService = {
     try {
       const res = await fetch(`${BASE_URL}list.php?a=list`);
       const data = await res.json();
-      return data.meals ? data.meals.map((m: any) => m.strArea) : [];
+      return data.meals ? data.meals.map((m: MealSummary) => m.strArea) : [];
     } catch (err) {
       console.error('Erreur getAreas:', err);
       return [];
@@ -416,7 +418,7 @@ export const recipeImportService = {
   /**
    * Filtre les recettes par catégorie
    */
-  async filterByCategory(category: string): Promise<any[]> {
+  async filterByCategory(category: string): Promise<MealSummary[]> {
     try {
       const res = await fetch(`${BASE_URL}filter.php?c=${encodeURIComponent(category)}`);
       const data = await res.json();
@@ -430,7 +432,7 @@ export const recipeImportService = {
   /**
    * Filtre les recettes par origine
    */
-  async filterByArea(area: string): Promise<any[]> {
+  async filterByArea(area: string): Promise<MealSummary[]> {
     try {
       const res = await fetch(`${BASE_URL}filter.php?a=${encodeURIComponent(area)}`);
       const data = await res.json();

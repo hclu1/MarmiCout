@@ -1,12 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { Camera, Upload, RefreshCw, AlertTriangle, Check, ArrowLeft, Plus, Trash2, Link as LinkIcon, Info } from 'lucide-react';
-import { Product, Recipe, RecipeIngredient, Settings } from '../types';
+import { Camera, Upload, RefreshCw, Check, ArrowLeft, Trash2, Link as LinkIcon, Info } from 'lucide-react';
+import { Product, Recipe, RecipeIngredient, RecipePackaging, Settings } from '../types';
 import { convertUnits } from '../services/db';
 import mammoth from 'mammoth';
 
 interface RecipeScannerProps {
   onClose: () => void;
-  onSave: (recipe: Recipe, ingredients: Omit<RecipeIngredient, 'id' | 'recipeId'>[], packagings: any[]) => void;
+  onSave: (recipe: Recipe, ingredients: Omit<RecipeIngredient, 'id' | 'recipeId'>[], packagings: Omit<RecipePackaging, 'id' | 'recipeId'>[]) => void;
   products: Product[];
   settings: Settings;
 }
@@ -177,7 +177,7 @@ export const RecipeScanner: React.FC<RecipeScannerProps> = ({ onClose, onSave, p
       } else if (currentSection === 'ingredients') {
         const match = line.match(ingLineRegex);
         if (match) {
-          let qtyStr = match[1] || "1";
+          const qtyStr = match[1] || "1";
           let qty = 1;
           if (qtyStr.includes('/')) {
             const parts = qtyStr.split('/');
@@ -231,7 +231,7 @@ export const RecipeScanner: React.FC<RecipeScannerProps> = ({ onClose, onSave, p
         const match = line.match(ingLineRegex);
         if (line.startsWith('-') || line.startsWith('*') || line.startsWith('•') || (match && match[1] && match[2])) {
           if (match) {
-            let qtyStr = match[1] || "1";
+            const qtyStr = match[1] || "1";
             let qty = parseFloat(qtyStr.replace(',', '.'));
             if (isNaN(qty)) qty = 1;
             const unit = match[2] || "pièce";
@@ -241,7 +241,7 @@ export const RecipeScanner: React.FC<RecipeScannerProps> = ({ onClose, onSave, p
             extractedIngredients.push({ customName: line.replace(/^[-*•\s]+/, ''), qtyUsed: 1, unit: 'pièce' });
           }
         } else {
-          if (line.match(/^\d+[\.\s]/) || line.length > 50) {
+          if (line.match(/^\d+[.\s]/) || line.length > 50) {
             instructionsLines.push(line);
           } else if (line.length > 0) {
             description += (description ? "\n" : "") + line;
@@ -408,7 +408,7 @@ export const RecipeScanner: React.FC<RecipeScannerProps> = ({ onClose, onSave, p
   };
 
   // Gestion des lignes d'ingrédients
-  const handleIngredientChange = (index: number, field: string, value: any) => {
+  const handleIngredientChange = (index: number, field: string, value: string | number) => {
     const updated = [...ingredients];
     updated[index] = { ...updated[index], [field]: value };
     

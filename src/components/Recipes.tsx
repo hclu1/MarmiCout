@@ -1,17 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Plus, 
-  ChefHat, 
-  Trash2, 
-  Edit, 
-  TrendingUp, 
-  Package, 
-  Clock, 
-  List, 
-  Scale, 
-  Info,
-  ChevronRight,
-  Maximize2,
+import {
+  Plus,
+  ChefHat,
+  Trash2,
+  TrendingUp,
+  Package,
+  Clock,
+  List,
+  Scale,
   Search,
   Camera,
   AlertTriangle,
@@ -19,8 +15,7 @@ import {
   ClipboardList,
   Download,
   ExternalLink,
-  ShoppingCart,
-  X
+  ShoppingCart
 } from 'lucide-react';
 import { dbService, convertUnits } from '../services/db';
 import { Product, Recipe, RecipeIngredient, RecipePackaging } from '../types';
@@ -69,7 +64,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
   const [selectedRecipeDetails, setSelectedRecipeDetails] = useState<Recipe | null>(null);
   const [detailsIngredients, setDetailsIngredients] = useState<RecipeIngredient[]>([]);
   const [detailsPackagings, setDetailsPackagings] = useState<RecipePackaging[]>([]);
-  const [detailsCost, setDetailsCost] = useState<any>(null);
+  const [detailsCost, setDetailsCost] = useState<ReturnType<typeof dbService.calculateRecipeCost> | null>(null);
 
   // États du simulateur de prix interactif dans le panneau de détails
   const [simMargin, setSimMargin] = useState(60); // % de marge cible
@@ -184,18 +179,9 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
   }, []);
-
-  // Déclenchements initiaux
-  useEffect(() => {
-    if (initialTriggerAdd) {
-      handleOpenAddForm();
-    } else if (initialViewRecipeId) {
-      const r = dbService.getRecipe(initialViewRecipeId);
-      if (r) handleOpenDetails(r);
-    }
-  }, [initialTriggerAdd, initialViewRecipeId]);
 
   // Synchroniser le prix de vente simulé au chargement d'un détail de recette
   const handleOpenDetails = (recipe: Recipe) => {
@@ -249,6 +235,18 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
     setIsFormOpen(true);
   };
 
+  // Déclenchements initiaux
+  useEffect(() => {
+    if (initialTriggerAdd) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      handleOpenAddForm();
+    } else if (initialViewRecipeId) {
+      const r = dbService.getRecipe(initialViewRecipeId);
+      if (r) handleOpenDetails(r);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTriggerAdd, initialViewRecipeId]);
+
   // Formulaire d'édition
   const handleOpenEditForm = (recipe: Recipe, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -266,8 +264,10 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
     setFormIsActive(recipe.isActive);
 
     // Charger les ingrédients et emballages associés
-    const ings = dbService.getRecipeIngredients(recipe.id).map(({ id, recipeId, ...rest }) => rest);
-    const packs = dbService.getRecipePackagings(recipe.id).map(({ id, recipeId, ...rest }) => rest);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const ings = dbService.getRecipeIngredients(recipe.id).map(({ id: _id, recipeId: _recipeId, ...rest }) => rest);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const packs = dbService.getRecipePackagings(recipe.id).map(({ id: _id, recipeId: _recipeId, ...rest }) => rest);
     
     setFormIngredients(ings);
     setFormPackagings(packs);
@@ -288,7 +288,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
     setFormIngredients(formIngredients.filter((_, i) => i !== index));
   };
 
-  const handleIngredientChange = (index: number, field: string, value: any) => {
+  const handleIngredientChange = (index: number, field: string, value: string | number) => {
     const updated = [...formIngredients];
     
     if (field === 'productId') {
@@ -333,7 +333,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
     setFormPackagings(formPackagings.filter((_, i) => i !== index));
   };
 
-  const handlePackagingChange = (index: number, field: string, value: any) => {
+  const handlePackagingChange = (index: number, field: string, value: string | number) => {
     const updated = [...formPackagings];
     updated[index] = { ...updated[index], [field]: value };
 

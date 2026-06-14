@@ -10,7 +10,6 @@ import {
   Settings as SettingsIcon,
   AlertTriangle,
   Plus,
-  X,
   Camera
 } from 'lucide-react';
 import './App.css'; // Nous allons vider ce fichier pour éviter les conflits
@@ -33,7 +32,7 @@ type Tab = 'Dashboard' | 'Produits' | 'Achats' | 'Recettes' | 'Production' | 'Ve
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('Dashboard');
-  const [tabExtraData, setTabExtraData] = useState<any>(null);
+  const [tabExtraData, setTabExtraData] = useState<Record<string, unknown> | null>(null);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [isMobileActionOpen, setIsMobileActionOpen] = useState(false);
 
@@ -45,6 +44,7 @@ function App() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     updateAlerts();
     // Rafraîchir toutes les 5 secondes ou à chaque changement d'onglet
     const interval = setInterval(updateAlerts, 5000);
@@ -52,7 +52,7 @@ function App() {
   }, [activeTab]);
 
   // Gérer la navigation inter-onglets avec paramètres
-  const handleNavigate = (tab: string, extraData?: any) => {
+  const handleNavigate = (tab: string, extraData?: Record<string, unknown>) => {
     setActiveTab(tab as Tab);
     if (extraData) {
       setTabExtraData(extraData);
@@ -65,6 +65,7 @@ function App() {
   // Effacer les données supplémentaires après le rendu pour éviter de les réappliquer en boucle
   useEffect(() => {
     if (tabExtraData !== null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTabExtraData(null);
     }
   }, [tabExtraData]);

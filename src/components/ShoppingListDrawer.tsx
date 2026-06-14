@@ -10,7 +10,7 @@ import {
   ChevronRight,
   X
 } from 'lucide-react';
-import { Recipe, RecipeIngredient, Product } from '../types';
+import { Recipe } from '../types';
 import { dbService, convertUnits } from '../services/db';
 
 interface RecipeSelection {

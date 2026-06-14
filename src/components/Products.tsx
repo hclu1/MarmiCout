@@ -1,14 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Plus, 
-  Search, 
-  Barcode, 
-  Edit, 
-  History, 
-  AlertTriangle, 
-  TrendingUp, 
-  X, 
-  Check, 
+  Plus,
+  Search,
+  Barcode,
+  Edit,
+  History,
   Archive,
   ArrowRightLeft
 } from 'lucide-react';
@@ -20,7 +16,7 @@ import { LookupResult } from '../services/barcodeLookupService';
 
 interface ProductsProps {
   initialTriggerAdd?: boolean;
-  onNavigate?: (tab: string, extraData?: any) => void;
+  onNavigate?: (tab: string, extraData?: Record<string, unknown>) => void;
 }
 
 export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigate }) => {
@@ -65,13 +61,6 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
     setStores(dbService.getStores());
   };
 
-  useEffect(() => {
-    loadData();
-    if (initialTriggerAdd) {
-      handleOpenAddForm();
-    }
-  }, [initialTriggerAdd]);
-
   // Ouvrir le formulaire en mode Ajout
   const handleOpenAddForm = () => {
     setEditingProduct(null);
@@ -89,6 +78,15 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
     setFormIsActive(true);
     setIsFormOpen(true);
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadData();
+    if (initialTriggerAdd) {
+      handleOpenAddForm();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTriggerAdd]);
 
   // Ouvrir le formulaire en mode Édition
   const handleOpenEditForm = (prod: Product, e: React.MouseEvent) => {
@@ -162,7 +160,7 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
     
     if (result.state === 'local_found' && result.localProduct) {
       alert(`Ce code-barres est déjà attribué au produit existant : ${result.localProduct.name}. Modification en cours.`);
-      handleOpenEditForm(result.localProduct, { stopPropagation: () => {} } as any);
+      handleOpenEditForm(result.localProduct, { stopPropagation: () => {} } as unknown as React.MouseEvent);
     } else if (result.state === 'external_found' && result.externalProduct) {
       setFormBarcode(result.externalProduct.barcode);
       setFormName(result.externalProduct.name);

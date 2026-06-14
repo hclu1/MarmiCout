@@ -30,6 +30,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
   // Synthèse d'un bip de caisse enregistreuse
   const playBeep = () => {
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
       const ctx = new AudioCtx();
@@ -190,11 +191,12 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
         } else if (isMounted) {
           await startScanning(html5Qrcode, { facingMode: "environment" });
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.warn("Échec d'initialisation des caméras :", err);
         if (isMounted) {
           setIsRealCamera(false);
-          if (err.name === 'NotAllowedError' || err.toString().includes('Permission denied')) {
+          const e = err as { name?: string; toString(): string };
+          if (e.name === 'NotAllowedError' || e.toString().includes('Permission denied')) {
             setCameraPermission('denied');
             setErrorMessage("Accès caméra refusé. Veuillez autoriser la caméra dans les paramètres de votre navigateur.");
           } else {
@@ -231,7 +233,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
           setCameraPermission('granted');
           setScanMessage("Visez le code-barres d'un ingrédient");
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.warn("Échec du lancement du scan vidéo :", err);
         if (isMounted) {
           setIsRealCamera(false);
@@ -249,6 +251,7 @@ export const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onScan, onClose 
         html5Qrcode.stop().catch(e => console.error("Erreur arrêt scanner", e));
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCameraId]);
 
   const handleSwitchCamera = (deviceId: string) => {

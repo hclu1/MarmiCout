@@ -10,6 +10,8 @@ import {
   translateIngredients
 } from '../services/recipeImportService';
 
+type MealSummary = Record<string, string>;
+
 interface RecipeImporterProps {
   onClose: () => void;
   onImport: (recipe: Recipe, ingredients: Omit<RecipeIngredient, 'id' | 'recipeId'>[]) => void;
@@ -18,17 +20,17 @@ interface RecipeImporterProps {
 
 export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImport, existingRecipes }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<MealSummary[]>([]);
   const [areas, setAreas] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedArea, setSelectedArea] = useState('');
-  
-  const [meals, setMeals] = useState<any[]>([]);
+
+  const [meals, setMeals] = useState<MealSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Aperçu de recette sélectionnée
-  const [selectedMealDetail, setSelectedMealDetail] = useState<any | null>(null);
+  const [selectedMealDetail, setSelectedMealDetail] = useState<MealSummary | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
 
@@ -47,8 +49,10 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
       }
     };
     loadFilters();
-    // Charger des résultats par défaut (recherche vide ou au hasard)
-    handleSearch('Chicken');
+    // Charger des résultats par défaut au démarrage
+    recipeImportService.searchRecipesByName('Chicken')
+      .then(results => setMeals(results || []))
+      .catch(console.error);
   }, []);
 
   const loadMeals = async (query: string, category: string, area: string) => {
@@ -56,7 +60,7 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
     setError(null);
     setSelectedMealDetail(null);
     try {
-      let results: any[] = [];
+      let results: MealSummary[] = [];
 
       // 1. Déterminer la source principale
       if (query.trim()) {
@@ -111,9 +115,9 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
       }
 
       setMeals(results || []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Erreur lors du chargement des recettes:", err);
-      setError(err.message || "Erreur lors du chargement des recettes.");
+      setError((err as Error).message || "Erreur lors du chargement des recettes.");
     } finally {
       setIsLoading(false);
     }
@@ -146,7 +150,7 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
       } else {
         setMeals([]);
       }
-    } catch (err) {
+    } catch {
       setError("Erreur lors de la récupération d'une recette aléatoire.");
     } finally {
       setIsLoading(false);
@@ -158,7 +162,7 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
     try {
       const mealDetail = await recipeImportService.getRecipeDetailsById(idMeal);
       setSelectedMealDetail(mealDetail);
-    } catch (err) {
+    } catch {
       alert("Impossible de charger les détails de cette recette.");
     } finally {
       setIsLoadingDetail(false);
@@ -280,7 +284,7 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
                 <option value="">-- Choisir une catégorie --</option>
                 {[...categories]
                   .sort((a, b) => translateCategoryFilterToFrench(a.strCategory).localeCompare(translateCategoryFilterToFrench(b.strCategory)))
-                  .map((c: any) => (
+                  .map((c) => (
                     <option key={c.idCategory} value={c.strCategory}>{translateCategoryFilterToFrench(c.strCategory)}</option>
                   ))
                 }
@@ -376,7 +380,7 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
           
           {/* COLONNE GAUCHE : LISTE DES RÉSULTATS */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '70vh', overflowY: 'auto', paddingRight: '8px' }}>
-            {meals.map((meal: any) => {
+            {meals.map((meal) => {
               const duplicate = isAlreadyImported(meal.idMeal, meal.strMeal);
               const isSelected = selectedMealDetail?.idMeal === meal.idMeal;
 

@@ -4,8 +4,7 @@ import {
   Download, 
   Upload, 
   RotateCcw, 
-  Check, 
-  HelpCircle,
+  Check,
   FileText,
   AlertTriangle
 } from 'lucide-react';
@@ -72,7 +71,7 @@ export const Settings: React.FC = () => {
   };
 
   // Exporter en CSV
-  const handleExportCSV = (tableKey: any, fileName: string) => {
+  const handleExportCSV = (tableKey: Parameters<typeof dbService.exportToCSV>[0], fileName: string) => {
     const csvContent = dbService.exportToCSV(tableKey);
     if (!csvContent) {
       alert("Aucune donnée disponible dans cette table.");
@@ -99,8 +98,8 @@ export const Settings: React.FC = () => {
     }
 
     const result = dbService.importFromCSV(
-      importTable as any, 
-      importText, 
+      importTable as Parameters<typeof dbService.importFromCSV>[0],
+      importText,
       importMerge
     );
 
@@ -162,14 +161,14 @@ export const Settings: React.FC = () => {
           throw new Error("Feuille inaccessible. Assurez-vous d'avoir configuré le partage en 'Tous les utilisateurs disposant du lien peuvent lire'.");
         }
 
-        const importResult = dbService.importFromCSV(sheet.key as any, csvText, false); // Écrasement total local
+        const importResult = dbService.importFromCSV(sheet.key as Parameters<typeof dbService.importFromCSV>[0], csvText, false); // Écrasement total local
         if (importResult.success) {
           successCount++;
         } else {
           throw new Error(importResult.error || "Format de données invalide");
         }
-      } catch (err: any) {
-        errors.push(`${sheet.name} : ${err.message || 'Erreur inconnue'}`);
+      } catch (err: unknown) {
+        errors.push(`${sheet.name} : ${(err as Error).message || 'Erreur inconnue'}`);
       }
     }
 
@@ -235,11 +234,11 @@ export const Settings: React.FC = () => {
         message: "Envoi réussi ! Vos données locales (ingrédients, achats, recettes, ventes...) ont été envoyées vers votre Google Sheet.\n\n💡 Actualisez votre document Google Sheets pour voir les données s'afficher !"
       });
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       setIsPushing(false);
       setPushStatus({
         type: 'error',
-        message: `Erreur d'envoi : ${err.message || 'Erreur de connexion réseau'}`
+        message: `Erreur d'envoi : ${(err as Error).message || 'Erreur de connexion réseau'}`
       });
     }
   };

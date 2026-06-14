@@ -105,7 +105,7 @@ export const barcodeLookupService = {
     }
 
     // 2. Recherche dans les fournisseurs externes
-    let lastError: any = null;
+    let lastError: unknown = null;
     for (const provider of providers) {
       try {
         const extData = await provider.lookup(cleaned);

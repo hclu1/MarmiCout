@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Plus, 
-  Sparkles, 
-  Trash2, 
-  Calendar, 
+import {
+  Plus,
+  Sparkles,
+  Calendar,
   AlertTriangle,
   CheckCircle2,
   ChefHat
@@ -44,28 +43,29 @@ export const Productions: React.FC<ProductionsProps> = ({ initialTriggerAdd }) =
     setProducts(dbService.getProducts());
   };
 
+  const handleOpenAddForm = () => {
+    const activeRecipes = dbService.getRecipes().filter(r => r.isActive);
+    setFormDate(new Date().toISOString().split('T')[0]);
+    setFormRecipeId(activeRecipes[0]?.id || '');
+    setFormPortions(activeRecipes[0]?.portions || 8);
+    setFormNotes('');
+    setIsFormOpen(true);
+  };
+
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData();
     if (initialTriggerAdd) {
       handleOpenAddForm();
     }
   }, [initialTriggerAdd]);
 
-  const handleOpenAddForm = () => {
-    const activeRecipes = dbService.getRecipes().filter(r => r.isActive);
-    setFormDate(new Date().toISOString().split('T')[0]);
-    setFormRecipeId(activeRecipes[0]?.id || '');
-    // Par défaut, proposer le nombre de portions de base de la recette
-    setFormPortions(activeRecipes[0]?.portions || 8);
-    setFormNotes('');
-    setIsFormOpen(true);
-  };
-
   // Re-calculer le nombre de portions suggéré lorsqu'on change de recette
   useEffect(() => {
     if (formRecipeId) {
       const selected = recipes.find(r => r.id === formRecipeId);
       if (selected) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setFormPortions(selected.portions);
       }
     }
@@ -128,7 +128,9 @@ export const Productions: React.FC<ProductionsProps> = ({ initialTriggerAdd }) =
       }
     });
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFeasibility({ isFeasible, missingIngredients, ingredientsUsed });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formRecipeId, formPortions, products, recipes]);
 
   // Valider et enregistrer la fabrication

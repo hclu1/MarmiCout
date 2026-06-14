@@ -1,21 +1,18 @@
 import React from 'react';
-import { 
-  TrendingUp, 
-  AlertTriangle, 
-  ShoppingCart, 
-  ChefHat, 
-  Sparkles, 
-  DollarSign, 
-  ArrowUpRight, 
-  Package, 
+import {
+  TrendingUp,
+  AlertTriangle,
+  ShoppingCart,
+  ChefHat,
+  Sparkles,
+  DollarSign,
   Activity,
   Plus
 } from 'lucide-react';
 import { dbService } from '../services/db';
-import { Product, Recipe } from '../types';
 
 interface DashboardProps {
-  onNavigate: (tab: string, extraData?: any) => void;
+  onNavigate: (tab: string, extraData?: Record<string, unknown>) => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
@@ -293,7 +290,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {recipesWithProfit.slice(0, 4).map(({ recipe, costInfo, avgSalePrice, profitUnit, marginPercent }) => (
+              {recipesWithProfit.slice(0, 4).map(({ recipe, costInfo, profitUnit, marginPercent }) => (
                 <div 
                   key={recipe.id}
                   style={{ 
