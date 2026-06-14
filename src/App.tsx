@@ -27,10 +27,9 @@ import { Settings } from './components/Settings';
 import { Drawer } from './components/Drawer';
 
 import { dbService } from './services/db';
+import { APP_VERSION } from './version';
 
 type Tab = 'Dashboard' | 'Produits' | 'Achats' | 'Recettes' | 'Production' | 'Ventes' | 'Magasins' | 'Paramètres';
-
-const APP_VERSION = '1.2.0';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('Dashboard');
