@@ -51,74 +51,86 @@ export const RecipeImporter: React.FC<RecipeImporterProps> = ({ onClose, onImpor
     handleSearch('Chicken');
   }, []);
 
-  const handleSearch = async (query: string) => {
+  const loadMeals = async (query: string, category: string, area: string) => {
     setIsLoading(true);
     setError(null);
     setSelectedMealDetail(null);
-    setSelectedCategory('');
-    setSelectedArea('');
     try {
-      const results = await recipeImportService.searchRecipesByName(query);
-      setMeals(results);
+      let results: any[] = [];
+
+      // 1. Déterminer la source principale
+      if (query.trim()) {
+        // Recherche textuelle
+        results = await recipeImportService.searchRecipesByName(query);
+      } else if (category && !area) {
+        // Catégorie uniquement
+        results = await recipeImportService.filterByCategory(category);
+        results = results.map(m => ({ ...m, strCategory: category, strArea: 'N/A' }));
+      } else if (area && !category) {
+        // Pays/Origine uniquement
+        results = await recipeImportService.filterByArea(area);
+        results = results.map(m => ({ ...m, strCategory: 'N/A', strArea: area }));
+      } else if (category && area) {
+        // Les deux filtres sont sélectionnés : on récupère les deux listes en parallèle et on fait l'intersection
+        const [catMeals, areaMeals] = await Promise.all([
+          recipeImportService.filterByCategory(category),
+          recipeImportService.filterByArea(area)
+        ]);
+
+        const areaMealIds = new Set(areaMeals.map(m => m.idMeal));
+        results = catMeals.filter(m => areaMealIds.has(m.idMeal));
+        results = results.map(m => ({ ...m, strCategory: category, strArea: area }));
+      } else {
+        // Aucun filtre : charger par défaut
+        results = await recipeImportService.searchRecipesByName('Chicken');
+      }
+
+      // Si on a à la fois une recherche textuelle ET des filtres (catégorie/région)
+      if (query.trim() && (category || area)) {
+        let filterSet: Set<string> | null = null;
+
+        if (category && area) {
+          const [catMeals, areaMeals] = await Promise.all([
+            recipeImportService.filterByCategory(category),
+            recipeImportService.filterByArea(area)
+          ]);
+          const areaIds = new Set(areaMeals.map(m => m.idMeal));
+          const intersectedIds = catMeals.filter(m => areaIds.has(m.idMeal)).map(m => m.idMeal);
+          filterSet = new Set(intersectedIds);
+        } else if (category) {
+          const catMeals = await recipeImportService.filterByCategory(category);
+          filterSet = new Set(catMeals.map(m => m.idMeal));
+        } else if (area) {
+          const areaMeals = await recipeImportService.filterByArea(area);
+          filterSet = new Set(areaMeals.map(m => m.idMeal));
+        }
+
+        if (filterSet) {
+          results = results.filter(m => filterSet!.has(m.idMeal));
+        }
+      }
+
+      setMeals(results || []);
     } catch (err: any) {
-      setError(err.message || "Erreur de connexion.");
+      console.error("Erreur lors du chargement des recettes:", err);
+      setError(err.message || "Erreur lors du chargement des recettes.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleCategoryFilter = async (category: string) => {
+  const handleSearch = (query: string) => {
+    loadMeals(query, selectedCategory, selectedArea);
+  };
+
+  const handleCategoryFilter = (category: string) => {
     setSelectedCategory(category);
-    setSelectedArea('');
-    setSelectedMealDetail(null);
-    if (!category) {
-      handleSearch(searchQuery || 'Chicken');
-      return;
-    }
-    setIsLoading(true);
-    setError(null);
-    setSearchQuery('');
-    try {
-      const results = await recipeImportService.filterByCategory(category);
-      // Les résultats de filtrage ne contiennent que idMeal, strMeal, strMealThumb.
-      // On enrichit l'objet pour l'affichage de base.
-      const mapped = results.map(m => ({
-        ...m,
-        strCategory: category,
-        strArea: 'N/A'
-      }));
-      setMeals(mapped);
-    } catch (err) {
-      setError("Erreur lors du filtrage par catégorie.");
-    } finally {
-      setIsLoading(false);
-    }
+    loadMeals(searchQuery, category, selectedArea);
   };
 
-  const handleAreaFilter = async (area: string) => {
+  const handleAreaFilter = (area: string) => {
     setSelectedArea(area);
-    setSelectedCategory('');
-    setSelectedMealDetail(null);
-    if (!area) {
-      handleSearch(searchQuery || 'Chicken');
-      return;
-    }
-    setIsLoading(true);
-    setError(null);
-    setSearchQuery('');
-    try {
-      const results = await recipeImportService.filterByArea(area);
-      const mapped = results.map(m => ({
-        ...m,
-        strCategory: 'N/A',
-        strArea: area
-      }));
-      setMeals(mapped);
-    } catch (err) {
-      setError("Erreur lors du filtrage par origine.");
-    } finally {
-      setIsLoading(false);
-    }
+    loadMeals(searchQuery, selectedCategory, area);
   };
 
   const handleRandomRecipe = async () => {
