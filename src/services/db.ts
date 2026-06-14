@@ -157,7 +157,7 @@ const INITIAL_SETTINGS: Settings = {
   salesLocations: ['Marché', 'Commande', 'En Ligne', 'Domicile', 'Autre'],
   defaultMinStockAlert: 2,
   googleSheetId: '1SU8ypH5aufwKVoZLlCfhcw6nwdS6nBwNDvj8hKr0F2k',
-  googleSheetLink: 'https://docs.google.com/spreadsheets/d/1SU8ypH5aufwKVoZLlCfhcw6nwdS6nBwNDvj8hKr0F2k/edit?usp=drive_link'
+  googleSheetLink: 'https://docs.google.com/spreadsheets/d/1SU8ypH5aufwKVoZLlCfhcw6nwdS6nBwNDvj8hKr0F2k/edit?usp=sharing'
 };
 
 // --- INITIALISATION DU LOCALSTORAGE ---
@@ -181,7 +181,7 @@ const initDB = () => {
         const currentSettings = JSON.parse(settingsStr);
         if (currentSettings.googleSheetId !== '1SU8ypH5aufwKVoZLlCfhcw6nwdS6nBwNDvj8hKr0F2k') {
           currentSettings.googleSheetId = '1SU8ypH5aufwKVoZLlCfhcw6nwdS6nBwNDvj8hKr0F2k';
-          currentSettings.googleSheetLink = 'https://docs.google.com/spreadsheets/d/1SU8ypH5aufwKVoZLlCfhcw6nwdS6nBwNDvj8hKr0F2k/edit?usp=drive_link';
+          currentSettings.googleSheetLink = 'https://docs.google.com/spreadsheets/d/1SU8ypH5aufwKVoZLlCfhcw6nwdS6nBwNDvj8hKr0F2k/edit?usp=sharing';
           localStorage.setItem(KEYS.SETTINGS, JSON.stringify(currentSettings));
         }
       }
