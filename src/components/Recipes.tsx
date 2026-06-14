@@ -12,11 +12,16 @@ import {
   Info,
   ChevronRight,
   Maximize2,
-  Search
+  Search,
+  Camera,
+  AlertTriangle,
+  Check,
+  ClipboardList
 } from 'lucide-react';
 import { dbService, convertUnits } from '../services/db';
 import { Product, Recipe, RecipeIngredient, RecipePackaging } from '../types';
 import { Drawer } from './Drawer';
+import { RecipeScanner } from './RecipeScanner';
 
 interface RecipesProps {
   initialTriggerAdd?: boolean;
@@ -64,6 +69,11 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
   const [simSellPrice, setSimSellPrice] = useState(0); // Prix de vente simulé
   const [simSalesCount, setSimSalesCount] = useState(20); // Quantité vendue pour journée type
 
+  // États de l'import par photo et portions cible
+  const [isScanViewOpen, setIsScanViewOpen] = useState(false);
+  const [portionsCible, setPortionsCible] = useState(1);
+  const [copiedCourses, setCopiedCourses] = useState(false);
+
   const loadData = () => {
     setRecipes(dbService.getRecipes());
     setProducts(dbService.getProducts().filter(p => p.isActive));
@@ -94,6 +104,8 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
     // Initialiser les valeurs du simulateur
     setSimMargin(settings.defaultTargetMargin);
     setSimSellPrice(costInfo.suggestedSellingPrice);
+    setPortionsCible(recipe.portions); // Portions cible par défaut
+    setCopiedCourses(false);
   };
 
   // Mettre à jour le prix de vente quand la marge change dans la simulation
@@ -267,6 +279,21 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
     return matchesSearch && matchesCategory;
   });
 
+  if (isScanViewOpen) {
+    return (
+      <RecipeScanner
+        onClose={() => setIsScanViewOpen(false)}
+        onSave={(newRecipe, newIngredients, newPackagings) => {
+          dbService.saveRecipe(newRecipe, newIngredients, newPackagings);
+          setIsScanViewOpen(false);
+          loadData();
+        }}
+        products={products}
+        settings={settings}
+      />
+    );
+  }
+
   return (
     <div>
       {/* En-tête */}
@@ -275,7 +302,11 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
           <h1 className="page-title">Recettes & Coûts de Revient</h1>
           <p className="page-subtitle">Calculez le coût exact de vos plats et déterminez vos prix de vente conseillés</p>
         </div>
-        <div className="actions-group">
+        <div className="actions-group" style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn btn-secondary" onClick={() => setIsScanViewOpen(true)}>
+            <Camera size={18} style={{ color: 'var(--color-primary)' }} />
+            Numériser une recette
+          </button>
           <button className="btn btn-primary" onClick={handleOpenAddForm}>
             <Plus size={18} />
             Créer une recette
@@ -668,25 +699,46 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                   if (initialTriggerAdd) return; // évite boucle
                   // naviguer vers production
                   window.location.hash = 'Production'; // Simulé ou via state global
-                  // Pour l'instant nous forcerons le rechargement ou le passage via prop si besoin
+                  window.dispatchEvent(new Event('hashchange'));
                 }}
               >
                 Cuisiner / Fabriquer ce plat
               </button>
 
-              {/* GRILLE DES COÛTS FINANCIERS DE BASE */}
+              {/* SÉLECTEUR DE PORTIONS CIBLE POUR MISE À L'ÉCHELLE */}
+              <div style={{ padding: '12px', backgroundColor: 'var(--color-primary-light)', borderRadius: 'var(--radius-md)', marginBottom: '16px', border: '1px dashed var(--color-primary)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Scale size={16} /> Mise à l'échelle (portions) :</span>
+                  <span style={{ fontSize: '15px', color: 'var(--color-primary)' }}>{portionsCible} parts</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max={Math.max(selectedRecipeDetails.portions * 4, 30)}
+                  step="1"
+                  value={portionsCible}
+                  onChange={(e) => setPortionsCible(Number(e.target.value))}
+                  style={{ width: '100%', accentColor: 'var(--color-primary)', marginBottom: '8px', cursor: 'pointer' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'var(--color-dark-light)' }}>
+                  <span>Portions d'origine : {selectedRecipeDetails.portions} parts</span>
+                  <span>Facteur : x{(portionsCible / selectedRecipeDetails.portions).toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* GRILLE DES COÛTS FINANCIERS AJUSTÉS */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', textAlign: 'center' }}>
                 <div style={{ padding: '8px', backgroundColor: 'var(--color-light)', borderRadius: 'var(--radius-md)' }}>
-                  <div style={{ fontSize: '10px', color: 'var(--color-dark-light)' }}>Coût Lot</div>
-                  <strong style={{ fontSize: '15px' }}>{detailsCost.totalCost.toFixed(2)} {settings.currency}</strong>
+                  <div style={{ fontSize: '10px', color: 'var(--color-dark-light)' }}>Coût Lot Ajusté</div>
+                  <strong style={{ fontSize: '14px' }}>{(detailsCost.totalCost * (portionsCible / selectedRecipeDetails.portions)).toFixed(2)} {settings.currency}</strong>
                 </div>
                 <div style={{ padding: '8px', backgroundColor: 'var(--color-light)', borderRadius: 'var(--radius-md)' }}>
                   <div style={{ fontSize: '10px', color: 'var(--color-dark-light)' }}>Coût Unitaire</div>
-                  <strong style={{ fontSize: '15px' }}>{detailsCost.costPerPortion.toFixed(2)} {settings.currency}</strong>
+                  <strong style={{ fontSize: '14px' }}>{detailsCost.costPerPortion.toFixed(2)} {settings.currency}</strong>
                 </div>
                 <div style={{ padding: '8px', backgroundColor: 'var(--color-secondary-light)', borderRadius: 'var(--radius-md)' }}>
                   <div style={{ fontSize: '10px', color: 'var(--color-secondary)' }}>Prix Conseillé</div>
-                  <strong style={{ fontSize: '15px', color: 'var(--color-secondary)' }}>{detailsCost.suggestedSellingPrice.toFixed(2)} {settings.currency}</strong>
+                  <strong style={{ fontSize: '14px', color: 'var(--color-secondary)' }}>{detailsCost.suggestedSellingPrice.toFixed(2)} {settings.currency}</strong>
                 </div>
               </div>
             </div>
@@ -711,7 +763,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                   step="5"
                   value={simMargin}
                   onChange={(e) => handleMarginChange(Number(e.target.value))}
-                  style={{ width: '100%', accentColor: 'var(--color-primary)' }}
+                  style={{ width: '100%', accentColor: 'var(--color-primary)', cursor: 'pointer' }}
                 />
               </div>
 
@@ -732,14 +784,14 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
                 <div style={{ padding: '10px', backgroundColor: 'var(--color-white)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
                   <div style={{ fontSize: '10px', color: 'var(--color-dark-light)' }}>Bénéfice par portion</div>
-                  <strong style={{ color: 'var(--color-secondary)', fontSize: '15px' }}>
+                  <strong style={{ color: 'var(--color-secondary)', fontSize: '14px' }}>
                     +{(simSellPrice - detailsCost.costPerPortion).toFixed(2)} {settings.currency}
                   </strong>
                 </div>
                 <div style={{ padding: '10px', backgroundColor: 'var(--color-white)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
-                  <div style={{ fontSize: '10px', color: 'var(--color-dark-light)' }}>Bénéfice par Lot ({selectedRecipeDetails.portions} u)</div>
-                  <strong style={{ color: 'var(--color-secondary)', fontSize: '15px' }}>
-                    +{((simSellPrice - detailsCost.costPerPortion) * selectedRecipeDetails.portions).toFixed(2)} {settings.currency}
+                  <div style={{ fontSize: '10px', color: 'var(--color-dark-light)' }}>Bénéfice par Lot ({portionsCible} u)</div>
+                  <strong style={{ color: 'var(--color-secondary)', fontSize: '14px' }}>
+                    +{((simSellPrice - detailsCost.costPerPortion) * portionsCible).toFixed(2)} {settings.currency}
                   </strong>
                 </div>
               </div>
@@ -776,24 +828,142 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
 
             </div>
 
-            {/* LISTE DES INGRÉDIENTS DÉTAILLÉS */}
+            {/* ALERTE DE DISPONIBILITÉ DES STOCKS */}
+            {(() => {
+              const scaleFactor = portionsCible / selectedRecipeDetails.portions;
+              let isFullyFeasible = true;
+              let isPartiallyFeasible = false;
+              let hasLinked = false;
+              
+              detailsIngredients.forEach(ri => {
+                if (ri.productId) {
+                  hasLinked = true;
+                  const prod = products.find(p => p.id === ri.productId);
+                  if (prod) {
+                    const qtyOrig = ri.originalQtyUsed || ri.qtyUsed;
+                    const qtyAjust = qtyOrig * scaleFactor;
+                    const neededQty = convertUnits(qtyAjust, ri.unit, prod.unit);
+                    if (prod.stock < neededQty) {
+                      isFullyFeasible = false;
+                      if (prod.stock > 0) isPartiallyFeasible = true;
+                    }
+                  }
+                }
+              });
+
+              // Calcul portions max faisables
+              let maxPortions = Infinity;
+              detailsIngredients.forEach(ri => {
+                if (ri.productId) {
+                  const prod = products.find(p => p.id === ri.productId);
+                  if (prod) {
+                    const qtyOrig = ri.originalQtyUsed || ri.qtyUsed;
+                    const qtyPerPortion = convertUnits(qtyOrig, ri.unit, prod.unit) / selectedRecipeDetails.portions;
+                    if (qtyPerPortion > 0) {
+                      const maxForThis = Math.floor(prod.stock / qtyPerPortion);
+                      if (maxForThis < maxPortions) maxPortions = maxForThis;
+                    }
+                  }
+                }
+              });
+              const displayMaxPortions = maxPortions === Infinity ? 'N/A' : maxPortions;
+
+              return (
+                <div style={{ marginBottom: '20px' }}>
+                  {hasLinked && (
+                    <div 
+                      style={{ 
+                        padding: '12px', 
+                        borderRadius: 'var(--radius-md)', 
+                        fontSize: '13px',
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '6px',
+                        backgroundColor: isFullyFeasible ? 'var(--color-secondary-light)' : (isPartiallyFeasible || (maxPortions !== Infinity && maxPortions > 0) ? 'var(--color-warning-light)' : 'var(--color-danger-light)'),
+                        color: isFullyFeasible ? 'var(--color-secondary)' : (isPartiallyFeasible || (maxPortions !== Infinity && maxPortions > 0) ? 'var(--color-warning)' : 'var(--color-danger)'),
+                        border: '1px solid rgba(0,0,0,0.05)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                        {isFullyFeasible ? <Check size={18} /> : <AlertTriangle size={18} />}
+                        <span>
+                          {isFullyFeasible 
+                            ? `Recette réalisable (${portionsCible} parts en stock !)` 
+                            : ((maxPortions !== Infinity && maxPortions > 0) 
+                              ? `Partiellement faisable (${displayMaxPortions} parts max avec vos stocks)` 
+                              : `Stocks insuffisants (0 part faisable)`)}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '11px', opacity: 0.9 }}>
+                        Quantité maximale de parts faisables avec le stock actuel : <strong>{displayMaxPortions} parts</strong>.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* LISTE DES INGRÉDIENTS DÉTAILLÉS AJUSTÉS */}
             <div style={{ marginBottom: '20px' }}>
               <h4 style={{ fontSize: '14px', fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <List size={16} />
-                Ingrédients ({detailsIngredients.length})
+                Ingrédients et stocks requis ({detailsIngredients.length})
               </h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {detailsIngredients.map(ri => {
                   const prod = products.find(p => p.id === ri.productId);
+                  const qtyOrig = ri.originalQtyUsed || ri.qtyUsed;
+                  const qtyAjust = qtyOrig * (portionsCible / selectedRecipeDetails.portions);
+                  
                   const costLine = prod 
-                    ? convertUnits(ri.qtyUsed, ri.unit, prod.unit) * prod.avgPurchasePrice
-                    : 0;
+                    ? convertUnits(qtyAjust, ri.unit, prod.unit) * prod.avgPurchasePrice
+                    : qtyAjust * (ri.customCostPerUnit || 0);
+
+                  // Calcul stock et écart
+                  let stockStatus = 'unlinked';
+                  let stockDetail = '';
+                  if (ri.productId && prod) {
+                    const needed = convertUnits(qtyAjust, ri.unit, prod.unit);
+                    if (prod.stock >= needed) {
+                      stockStatus = 'ok';
+                      stockDetail = `En stock (${prod.stock.toFixed(1)} ${prod.unit})`;
+                    } else if (prod.stock > 0) {
+                      stockStatus = 'partial';
+                      stockDetail = `Insuffisant (Stock: ${prod.stock.toFixed(1)}, Manque: ${(needed - prod.stock).toFixed(1)} ${prod.unit})`;
+                    } else {
+                      stockStatus = 'empty';
+                      stockDetail = `Rupture (Requis: ${needed.toFixed(1)} ${prod.unit})`;
+                    }
+                  }
+
                   return (
-                    <div key={ri.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '6px 8px', backgroundColor: 'var(--color-light)', borderRadius: 'var(--radius-sm)' }}>
-                      <span>{prod?.name || 'Inconnu'}</span>
-                      <div style={{ display: 'flex', gap: '16px' }}>
-                        <span style={{ color: 'var(--color-dark-light)' }}>{ri.qtyUsed} {ri.unit}</span>
-                        <strong style={{ width: '50px', textAlign: 'right' }}>{costLine.toFixed(2)}€</strong>
+                    <div 
+                      key={ri.id} 
+                      style={{ 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '4px',
+                        padding: '10px', 
+                        backgroundColor: 'var(--color-light)', 
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--color-border)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: '600' }}>
+                        <span>{prod?.name || ri.customName || 'Ingrédient'}</span>
+                        <strong>{costLine.toFixed(2)}€</strong>
+                      </div>
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                        <span style={{ color: 'var(--color-dark-light)' }}>
+                          {qtyOrig} {ri.unit} ➔ <strong style={{ color: 'var(--color-primary)' }}>{qtyAjust.toFixed(1)} {ri.unit}</strong>
+                        </span>
+
+                        {/* Badge de stock */}
+                        {stockStatus === 'ok' && <span className="badge badge-success" style={{ fontSize: '10px', padding: '2px 6px' }}>{stockDetail}</span>}
+                        {stockStatus === 'partial' && <span className="badge badge-warning" style={{ fontSize: '10px', padding: '2px 6px', color: 'var(--color-warning)', backgroundColor: 'var(--color-warning-light)' }}>{stockDetail}</span>}
+                        {stockStatus === 'empty' && <span className="badge badge-danger" style={{ fontSize: '10px', padding: '2px 6px' }}>{stockDetail}</span>}
+                        {stockStatus === 'unlinked' && <span className="badge" style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: 'rgba(0,0,0,0.06)', color: 'var(--color-dark-light)' }}>Non suivi en stock</span>}
                       </div>
                     </div>
                   );
@@ -801,7 +971,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
               </div>
             </div>
 
-            {/* LISTE DES EMBALLAGES DÉTAILLÉS */}
+            {/* LISTE DES EMBALLAGES DÉTAILLÉS AJUSTÉS */}
             {detailsPackagings.length > 0 && (
               <div style={{ marginBottom: '20px' }}>
                 <h4 style={{ fontSize: '14px', fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -813,14 +983,73 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                     <div key={rp.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '6px 8px', backgroundColor: 'var(--color-light)', borderRadius: 'var(--radius-sm)' }}>
                       <span>{rp.name}</span>
                       <div style={{ display: 'flex', gap: '16px' }}>
-                        <span style={{ color: 'var(--color-dark-light)' }}>{rp.qtyUsed} u</span>
-                        <strong style={{ width: '50px', textAlign: 'right' }}>{(rp.qtyUsed * rp.costPerUnit).toFixed(2)}€</strong>
+                        <span style={{ color: 'var(--color-dark-light)' }}>{(rp.qtyUsed * (portionsCible / selectedRecipeDetails.portions)).toFixed(1)} u</span>
+                        <strong style={{ width: '50px', textAlign: 'right' }}>{(rp.qtyUsed * (portionsCible / selectedRecipeDetails.portions) * rp.costPerUnit).toFixed(2)}€</strong>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
+
+            {/* LISTE DES INGRÉDIENTS MANQUANTS / LISTE DE COURSES */}
+            {(() => {
+              const scaleFactor = portionsCible / selectedRecipeDetails.portions;
+              const missingList: { name: string; qty: number; unit: string }[] = [];
+              
+              detailsIngredients.forEach(ri => {
+                if (ri.productId) {
+                  const prod = products.find(p => p.id === ri.productId);
+                  if (prod) {
+                    const qtyOrig = ri.originalQtyUsed || ri.qtyUsed;
+                    const qtyAjust = qtyOrig * scaleFactor;
+                    const needed = convertUnits(qtyAjust, ri.unit, prod.unit);
+                    if (prod.stock < needed) {
+                      const deficit = needed - prod.stock;
+                      const deficitRecipeUnit = convertUnits(deficit, prod.unit, ri.unit);
+                      missingList.push({
+                        name: prod.name,
+                        qty: deficitRecipeUnit,
+                        unit: ri.unit
+                      });
+                    }
+                  }
+                }
+              });
+
+              if (missingList.length === 0) return null;
+
+              return (
+                <div className="card" style={{ marginBottom: '20px', borderLeft: '4px solid var(--color-danger)' }}>
+                  <h4 style={{ fontSize: '13px', fontWeight: '700', color: 'var(--color-danger)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                    <ClipboardList size={16} />
+                    Ingrédients manquants (Liste de courses)
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' }}>
+                    {missingList.map((m, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--color-dark)' }}>
+                        <span>• {m.name}</span>
+                        <strong style={{ color: 'var(--color-danger)' }}>Acheter : {m.qty.toFixed(1)} {m.unit}</strong>
+                      </div>
+                    ))}
+                  </div>
+
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    style={{ width: '100%', height: '32px', fontSize: '12px', padding: 0 }}
+                    onClick={() => {
+                      const text = missingList.map(m => `- ${m.name} : ${m.qty.toFixed(1)} ${m.unit}`).join('\n');
+                      navigator.clipboard.writeText(`Liste de courses pour ${selectedRecipeDetails.name} (${portionsCible} portions) :\n${text}`);
+                      setCopiedCourses(true);
+                      setTimeout(() => setCopiedCourses(false), 2000);
+                    }}
+                  >
+                    {copiedCourses ? '✅ Liste copiée !' : '📋 Copier la liste de courses'}
+                  </button>
+                </div>
+              );
+            })()}
 
             {/* USTENSILLES & CONSEILS */}
             {selectedRecipeDetails.utensilsNotes && (

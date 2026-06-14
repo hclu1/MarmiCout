@@ -469,11 +469,16 @@ export const dbService = {
     // 1. Coût des ingrédients
     let ingredientsCost = 0;
     ingredients.forEach(ing => {
-      const prod = products.find(p => p.id === ing.productId);
-      if (prod) {
-        // Convertir la quantité de la recette vers l'unité de stock du produit
-        const convertedQty = convertUnits(ing.qtyUsed, ing.unit, prod.unit);
-        ingredientsCost += convertedQty * prod.avgPurchasePrice;
+      if (ing.productId) {
+        const prod = products.find(p => p.id === ing.productId);
+        if (prod) {
+          // Convertir la quantité de la recette vers l'unité de stock du produit
+          const convertedQty = convertUnits(ing.qtyUsed, ing.unit, prod.unit);
+          ingredientsCost += convertedQty * prod.avgPurchasePrice;
+        }
+      } else if (ing.customCostPerUnit) {
+        // Ingrédient non lié avec coût estimé
+        ingredientsCost += ing.qtyUsed * ing.customCostPerUnit;
       }
     });
 
@@ -566,7 +571,7 @@ export const dbService = {
         this.addStockMovement({
           id: 'SM_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
           date: production.date,
-          productId: ing.productId,
+          productId: prod.id,
           qty: -qtyNeeded,
           type: 'PRODUCTION_CONSOMMATION',
           refId: production.id,

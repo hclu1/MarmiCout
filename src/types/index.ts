@@ -41,9 +41,12 @@ export interface Store {
 export interface RecipeIngredient {
   id: string;
   recipeId: string;
-  productId: string;
-  qtyUsed: number; // quantité utilisée
-  unit: string; // unité d'utilisation (peut différer de l'unité produit, ex: g vs kg)
+  productId?: string; // ID du produit lié au stock (facultatif)
+  customName?: string; // Nom textuel si l'ingrédient n'est pas lié au stock
+  qtyUsed: number; // quantité utilisée (ajustée)
+  unit: string; // unité d'utilisation
+  originalQtyUsed?: number; // quantité de la recette d'origine
+  customCostPerUnit?: number; // coût estimé par unité (pour les non-liés)
 }
 
 export interface RecipePackaging {
@@ -68,6 +71,9 @@ export interface Recipe {
   notes?: string;
   isActive: boolean;
   photo?: string;
+  originalPortions?: number; // Nombre de portions de la recette d'origine
+  sourceImage?: string; // Image base64 ou URL de la recette photo
+  rawExtractedText?: string; // Texte brut extrait
 }
 
 export interface Production {
