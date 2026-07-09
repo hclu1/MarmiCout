@@ -416,16 +416,16 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
 
           <div className="form-row">
             <div className="form-group">
-              <label className="form-label">Quantité achetée</label>
+              <label className="form-label">Quantité achetée *</label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
-                  type="number"
-                  step="any"
+                  type="text"
+                  inputMode="decimal"
                   className="form-input"
                   style={{ flex: 1 }}
                   required
-                  min="0.01"
-                  value={formQty}
+                  placeholder="0"
+                  value={formQty === 0 ? '' : formQty}
                   onChange={(e) => setFormQty(parseDecimalInput(e.target.value))}
                 />
                 <span className="form-input" style={{ width: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-light)', border: '1px solid var(--color-border)' }}>
@@ -437,12 +437,12 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
             <div className="form-group">
               <label className="form-label">Prix Total Payé ({settings.currency}) *</label>
               <input
-                type="number"
-                step="any"
+                type="text"
+                inputMode="decimal"
                 className="form-input"
                 required
-                min="0.01"
-                value={formPricePaid}
+                placeholder="0.00"
+                value={formPricePaid === 0 ? '' : formPricePaid}
                 onChange={(e) => setFormPricePaid(parseDecimalInput(e.target.value))}
               />
             </div>

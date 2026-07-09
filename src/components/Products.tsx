@@ -476,10 +476,11 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
             <div className="form-group">
               <label className="form-label">Stock initial ({formUnit})</label>
               <input
-                type="number"
-                step="any"
+                type="text"
+                inputMode="decimal"
                 className="form-input"
-                value={formStock}
+                value={formStock === 0 ? '' : formStock}
+                placeholder="0"
                 onChange={(e) => setFormStock(parseDecimalInput(e.target.value))}
                 disabled={editingProduct !== null} // Désactivé en édition (doit passer par Achat ou Ajustement)
               />
@@ -488,10 +489,11 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
             <div className="form-group">
               <label className="form-label">Seuil d'alerte stock bas</label>
               <input
-                type="number"
-                step="any"
+                type="text"
+                inputMode="decimal"
                 className="form-input"
-                value={formMinStock}
+                value={formMinStock === 0 ? '' : formMinStock}
+                placeholder="0"
                 onChange={(e) => setFormMinStock(parseDecimalInput(e.target.value))}
               />
             </div>
@@ -501,10 +503,11 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
             <div className="form-group">
               <label className="form-label">Prix d'achat moyen ({settings.currency} / {formUnit})</label>
               <input
-                type="number"
-                step="any"
+                type="text"
+                inputMode="decimal"
                 className="form-input"
-                value={formAvgPrice}
+                value={formAvgPrice === 0 ? '' : formAvgPrice}
+                placeholder="0.00"
                 onChange={(e) => setFormAvgPrice(parseDecimalInput(e.target.value))}
                 disabled={editingProduct !== null} // En édition, c'est calculé via les achats
               />
