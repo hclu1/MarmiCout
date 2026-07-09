@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { parseDecimalInput } from '../utils';
 import { 
   Plus, 
@@ -6,13 +6,15 @@ import {
   Barcode, 
   Trash2, 
   Calendar, 
-  AlertTriangle 
+  AlertTriangle,
+  FileText
 } from 'lucide-react';
 import { dbService } from '../services/db';
 import { Product, Purchase, Store } from '../types';
 import { Drawer } from './Drawer';
 import { BarcodeScanner } from './BarcodeScanner';
 import { LookupResult } from '../services/barcodeLookupService';
+import { InvoiceScanner } from './InvoiceScanner';
 
 interface PurchasesProps {
   initialTriggerScan?: boolean;
@@ -28,6 +30,7 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
   // État du Drawer de Formulaire d'Achat
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isInvoiceScannerOpen, setIsInvoiceScannerOpen] = useState(false);
 
   // Valeurs du formulaire d'achat
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
@@ -216,6 +219,19 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
     loadData();
   };
 
+  // Enregistrer les achats extraits du scanner de factures
+  const handleSaveInvoicePurchases = (scannedPurchases: Omit<Purchase, 'id'>[]) => {
+    scannedPurchases.forEach(p => {
+      const fullPurchase: Purchase = {
+        id: 'A_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+        ...p
+      };
+      dbService.addPurchase(fullPurchase);
+    });
+    setIsInvoiceScannerOpen(false);
+    loadData();
+  };
+
   // Supprimer un achat
   const handleDeletePurchase = (id: string) => {
     if (window.confirm("Êtes-vous sûr de vouloir supprimer cet achat ? Le stock associé sera déduit.")) {
@@ -235,6 +251,10 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
           <p className="page-subtitle">Enregistrez vos factures et réapprovisionnez votre stock</p>
         </div>
         <div className="actions-group">
+          <button className="btn btn-secondary" onClick={() => setIsInvoiceScannerOpen(true)}>
+            <FileText size={18} />
+            Scanner une facture
+          </button>
           <button className="btn btn-primary" onClick={handleOpenAddForm}>
             <Plus size={18} />
             Enregistrer un achat
@@ -549,6 +569,21 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
             </div>
           </div>
         </form>
+      </Drawer>
+
+      {/* Drawer de Scan de Facture */}
+      <Drawer
+        title="Scanner et importer une facture"
+        isOpen={isInvoiceScannerOpen}
+        onClose={() => setIsInvoiceScannerOpen(false)}
+      >
+        <InvoiceScanner
+          onClose={() => setIsInvoiceScannerOpen(false)}
+          onSave={handleSaveInvoicePurchases}
+          products={products}
+          stores={stores}
+          settings={settings}
+        />
       </Drawer>
     </div>
   );
