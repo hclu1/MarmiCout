@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
+import { parseDecimalInput } from '../utils';
 import { 
   Plus, 
   ShoppingCart, 
@@ -405,7 +406,7 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
                   required
                   min="0.01"
                   value={formQty}
-                  onChange={(e) => setFormQty(Number(e.target.value))}
+                  onChange={(e) => setFormQty(parseDecimalInput(e.target.value))}
                 />
                 <span className="form-input" style={{ width: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-light)', border: '1px solid var(--color-border)' }}>
                   {formUnit}
@@ -422,7 +423,7 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
                 required
                 min="0.01"
                 value={formPricePaid}
-                onChange={(e) => setFormPricePaid(Number(e.target.value))}
+                onChange={(e) => setFormPricePaid(parseDecimalInput(e.target.value))}
               />
             </div>
           </div>

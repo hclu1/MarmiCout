@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
+import { parseDecimalInput } from '../utils';
 import { 
   Plus,
   Search,
@@ -459,7 +460,7 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
                 step="any"
                 className="form-input"
                 value={formStock}
-                onChange={(e) => setFormStock(Number(e.target.value))}
+                onChange={(e) => setFormStock(parseDecimalInput(e.target.value))}
                 disabled={editingProduct !== null} // Désactivé en édition (doit passer par Achat ou Ajustement)
               />
             </div>
@@ -471,7 +472,7 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
                 step="any"
                 className="form-input"
                 value={formMinStock}
-                onChange={(e) => setFormMinStock(Number(e.target.value))}
+                onChange={(e) => setFormMinStock(parseDecimalInput(e.target.value))}
               />
             </div>
           </div>
@@ -484,7 +485,7 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
                 step="any"
                 className="form-input"
                 value={formAvgPrice}
-                onChange={(e) => setFormAvgPrice(Number(e.target.value))}
+                onChange={(e) => setFormAvgPrice(parseDecimalInput(e.target.value))}
                 disabled={editingProduct !== null} // En édition, c'est calculé via les achats
               />
             </div>

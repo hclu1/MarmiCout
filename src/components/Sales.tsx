@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
+import { parseDecimalInput } from '../utils';
 import {
   Plus,
   DollarSign,
@@ -566,7 +567,7 @@ export const Sales: React.FC<SalesProps> = ({ initialTriggerAdd }) => {
                 className="form-input"
                 required
                 value={formQty}
-                onChange={(e) => setFormQty(Number(e.target.value))}
+                onChange={(e) => setFormQty(parseDecimalInput(e.target.value))}
               />
             </div>
 
@@ -579,7 +580,7 @@ export const Sales: React.FC<SalesProps> = ({ initialTriggerAdd }) => {
                 required
                 min="0.01"
                 value={formUnitPrice}
-                onChange={(e) => setFormUnitPrice(Number(e.target.value))}
+                onChange={(e) => setFormUnitPrice(parseDecimalInput(e.target.value))}
               />
             </div>
           </div>

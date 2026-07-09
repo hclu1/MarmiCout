@@ -25,7 +25,7 @@ import { Stores } from './components/Stores';
 import { Settings } from './components/Settings';
 import { Drawer } from './components/Drawer';
 
-import { dbService } from './services/db';
+import { dbService, getActiveTesterCode } from './services/db';
 import { APP_VERSION } from './version';
 
 type Tab = 'Dashboard' | 'Produits' | 'Achats' | 'Recettes' | 'Production' | 'Ventes' | 'Magasins' | 'Paramètres';
@@ -168,7 +168,27 @@ function App() {
 
         <div className="sidebar-footer">
           <div>{currentSettings.businessName}</div>
-          <div style={{ fontSize: '11px', color: 'var(--color-dark-light)', marginTop: '2px' }}>MarmiCout V.{APP_VERSION}</div>
+          <div style={{ fontSize: '11px', color: 'var(--color-dark-light)', marginTop: '2px' }}>
+            MarmiCout V.{APP_VERSION}
+          </div>
+          {(() => {
+            const code = getActiveTesterCode();
+            return code ? (
+              <div style={{
+                marginTop: '8px',
+                padding: '4px 8px',
+                backgroundColor: 'var(--color-warning-light)',
+                color: 'var(--color-warning)',
+                borderRadius: '4px',
+                fontSize: '10px',
+                fontWeight: 'bold',
+                textAlign: 'center',
+                border: '1px solid rgba(242, 185, 34, 0.2)'
+              }}>
+                🧪 Espace Testeur : {code.toUpperCase()}
+              </div>
+            ) : null;
+          })()}
         </div>
       </aside>
 

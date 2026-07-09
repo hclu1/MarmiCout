@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
+import { parseDecimalInput } from '../utils';
 import {
   Plus,
   ChefHat,
@@ -18,7 +19,7 @@ import {
   ShoppingCart
 } from 'lucide-react';
 import { dbService, convertUnits } from '../services/db';
-import { Product, Recipe, RecipeIngredient, RecipePackaging } from '../types';
+import { Product, Recipe, RecipeIngredient, RecipePackaging, Production } from '../types';
 import { Drawer } from './Drawer';
 import { RecipeScanner } from './RecipeScanner';
 import { RecipeImporter } from './RecipeImporter';
@@ -76,6 +77,9 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
   const [isImportViewOpen, setIsImportViewOpen] = useState(false);
   const [portionsCible, setPortionsCible] = useState(1);
   const [copiedCourses, setCopiedCourses] = useState(false);
+  // Résultat du bouton "Cuisiner" dans le panneau détail
+  const [detailCookResult, setDetailCookResult] = useState<'idle' | 'success' | 'error'>('idle');
+  const [detailCookError, setDetailCookError] = useState('');
 
   // États de la Liste de courses (sélection de recettes pour prestation)
   const [planningSelections, setPlanningSelections] = useState<Map<string, number>>(new Map());
@@ -191,11 +195,36 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
     setDetailsPackagings(dbService.getRecipePackagings(recipe.id));
     setDetailsCost(costInfo);
 
-    // Initialiser les valeurs du simulateur
+    // Si la recette est dans les sélections de planification, utiliser ces portions
+    const plannedPortions = planningSelections.get(recipe.id);
+    setPortionsCible(plannedPortions ?? recipe.portions);
     setSimMargin(settings.defaultTargetMargin);
     setSimSellPrice(costInfo.suggestedSellingPrice);
-    setPortionsCible(recipe.portions); // Portions cible par défaut
     setCopiedCourses(false);
+    setDetailCookResult('idle');
+    setDetailCookError('');
+  };
+
+  // Cuisiner depuis le panneau détail : crée une vraie production et déduit les stocks
+  const handleCookFromDetail = () => {
+    if (!selectedRecipeDetails) return;
+    const costInfo = dbService.calculateRecipeCost(selectedRecipeDetails.id);
+    const factor = portionsCible / (selectedRecipeDetails.portions || 1);
+    const prod: Production = {
+      id: 'PR_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      date: new Date().toISOString().split('T')[0],
+      recipeId: selectedRecipeDetails.id,
+      portionsProduced: portionsCible,
+      calculatedCost: Number((costInfo.totalCost * factor).toFixed(2))
+    };
+    const result = dbService.addProduction(prod);
+    if (result.success) {
+      setDetailCookResult('success');
+      loadData();
+    } else {
+      setDetailCookResult('error');
+      setDetailCookError(result.error || 'Erreur inconnue');
+    }
   };
 
   // Mettre à jour le prix de vente quand la marge change dans la simulation
@@ -568,7 +597,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                       min="1"
                       value={selectedPortions}
                       onClick={e => e.stopPropagation()}
-                      onChange={e => updatePlanningPortions(r.id, Number(e.target.value))}
+                      onChange={e => updatePlanningPortions(r.id, parseDecimalInput(e.target.value))}
                       style={{
                         width: '54px',
                         height: '26px',
@@ -586,7 +615,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                 )}
 
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', paddingRight: '36px' }}>
                     <span className="badge badge-info">{r.category}</span>
                     <span className="badge badge-success" style={{ backgroundColor: 'var(--color-light)', color: 'var(--color-dark)' }}>
                       Stock fini : {r.stock} u
@@ -695,6 +724,11 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
         selections={planningSelectionsArray}
         isOpen={isShoppingListOpen}
         onClose={() => setIsShoppingListOpen(false)}
+        onUpdatePortions={updatePlanningPortions}
+        onCookDone={() => {
+          loadData();
+          clearAllSelections();
+        }}
       />
 
       {/* --- DRAWER FORMULAIRE (AJOUT / MODIFICATION DE RECETTE) --- */}
@@ -745,7 +779,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                 className="form-input"
                 min="0"
                 value={formPrepTime || ''}
-                onChange={(e) => setFormPrepTime(e.target.value ? Number(e.target.value) : undefined)}
+                onChange={(e) => setFormPrepTime(e.target.value ? parseDecimalInput(e.target.value) : undefined)}
               />
             </div>
           </div>
@@ -770,7 +804,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                 className="form-input"
                 required
                 value={formPortions}
-                onChange={(e) => setFormPortions(Number(e.target.value))}
+                onChange={(e) => setFormPortions(parseDecimalInput(e.target.value))}
               />
             </div>
 
@@ -846,7 +880,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                         required
                         min="0.001"
                         value={ing.qtyUsed}
-                        onChange={(e) => handleIngredientChange(idx, 'qtyUsed', Number(e.target.value))}
+                        onChange={(e) => handleIngredientChange(idx, 'qtyUsed', parseDecimalInput(e.target.value))}
                       />
 
                       {/* Unité */}
@@ -905,7 +939,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                             className="form-input"
                             style={{ width: '50px', height: '30px', padding: '0 4px', fontSize: '12px', textAlign: 'center' }}
                             value={ing.customCostPerUnit || 0}
-                            onChange={(e) => handleIngredientChange(idx, 'customCostPerUnit', Number(e.target.value))}
+                            onChange={(e) => handleIngredientChange(idx, 'customCostPerUnit', parseDecimalInput(e.target.value))}
                           />
                           <span style={{ fontSize: '11px' }}>€/{ing.unit}</span>
                         </div>
@@ -965,7 +999,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                     required
                     min="1"
                     value={pack.qtyUsed}
-                    onChange={(e) => handlePackagingChange(idx, 'qtyUsed', Number(e.target.value))}
+                    onChange={(e) => handlePackagingChange(idx, 'qtyUsed', parseDecimalInput(e.target.value))}
                   />
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '2px', width: '80px' }}>
@@ -977,7 +1011,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                       required
                       min="0"
                       value={pack.costPerUnit}
-                      onChange={(e) => handlePackagingChange(idx, 'costPerUnit', Number(e.target.value))}
+                      onChange={(e) => handlePackagingChange(idx, 'costPerUnit', parseDecimalInput(e.target.value))}
                     />
                     <span style={{ fontSize: '12px' }}>€/u</span>
                   </div>
@@ -1060,35 +1094,90 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                 <p style={{ color: 'var(--color-dark-light)', fontSize: '13px', marginBottom: '16px' }}>{selectedRecipeDetails.description}</p>
               )}
 
-              {/* Raccourci de production */}
-              <button 
-                type="button" 
-                className="btn btn-success" 
-                style={{ width: '100%', marginBottom: '16px' }}
-                onClick={() => {
-                  setSelectedRecipeDetails(null);
-                  if (initialTriggerAdd) return; // évite boucle
-                  // naviguer vers production
-                  window.location.hash = 'Production'; // Simulé ou via state global
-                  window.dispatchEvent(new Event('hashchange'));
-                }}
-              >
-                Cuisiner / Fabriquer ce plat
-              </button>
+              {/* Raccourci de production — crée vraiment une production */}
+              {detailCookResult === 'success' ? (
+                <div style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  backgroundColor: 'var(--color-secondary-light)',
+                  border: '1px solid rgba(50,180,100,0.3)',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  fontSize: '13px',
+                  color: 'var(--color-secondary)',
+                  fontWeight: '600'
+                }}>
+                  <Check size={20} />
+                  ✅ {portionsCible} portions produites ! Stock déduit avec succès.
+                  <button
+                    type="button"
+                    onClick={() => setDetailCookResult('idle')}
+                    style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}
+                  >×</button>
+                </div>
+              ) : detailCookResult === 'error' ? (
+                <div style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  backgroundColor: 'var(--color-danger-light)',
+                  border: '1px solid rgba(255,75,75,0.2)',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: '16px',
+                  fontSize: '12px',
+                  color: 'var(--color-danger)'
+                }}>
+                  ❌ {detailCookError}
+                  <button
+                    type="button"
+                    onClick={() => setDetailCookResult('idle')}
+                    style={{ marginLeft: '8px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-danger)', fontWeight: '700' }}
+                  >Réessayer</button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-success"
+                  style={{ width: '100%', marginBottom: '16px' }}
+                  onClick={handleCookFromDetail}
+                >
+                  <ChefHat size={18} />
+                  Cuisiner {portionsCible} portion(s) — Déduire du stock
+                </button>
+              )}
 
               {/* SÉLECTEUR DE PORTIONS CIBLE POUR MISE À L'ÉCHELLE */}
               <div style={{ padding: '12px', backgroundColor: 'var(--color-primary-light)', borderRadius: 'var(--radius-md)', marginBottom: '16px', border: '1px dashed var(--color-primary)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', fontWeight: 'bold', marginBottom: '8px' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Scale size={16} /> Mise à l'échelle (portions) :</span>
-                  <span style={{ fontSize: '15px', color: 'var(--color-primary)' }}>{portionsCible} parts</span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={portionsCible}
+                    onChange={e => setPortionsCible(Math.max(1, parseDecimalInput(e.target.value)))}
+                    style={{
+                      width: '72px',
+                      height: '32px',
+                      border: '2px solid var(--color-primary)',
+                      borderRadius: '6px',
+                      textAlign: 'center',
+                      fontSize: '15px',
+                      fontWeight: '700',
+                      color: 'var(--color-primary)',
+                      padding: '0 4px',
+                      backgroundColor: '#fff'
+                    }}
+                  />
                 </div>
                 <input
                   type="range"
                   min="1"
-                  max={Math.max(selectedRecipeDetails.portions * 4, 30)}
+                  max={Math.max(selectedRecipeDetails.portions * 20, 200)}
                   step="1"
-                  value={portionsCible}
-                  onChange={(e) => setPortionsCible(Number(e.target.value))}
+                  value={Math.min(portionsCible, Math.max(selectedRecipeDetails.portions * 20, 200))}
+                  onChange={(e) => setPortionsCible(parseDecimalInput(e.target.value))}
                   style={{ width: '100%', accentColor: 'var(--color-primary)', marginBottom: '8px', cursor: 'pointer' }}
                 />
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: 'var(--color-dark-light)' }}>
@@ -1133,7 +1222,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                   max="90"
                   step="5"
                   value={simMargin}
-                  onChange={(e) => handleMarginChange(Number(e.target.value))}
+                  onChange={(e) => handleMarginChange(parseDecimalInput(e.target.value))}
                   style={{ width: '100%', accentColor: 'var(--color-primary)', cursor: 'pointer' }}
                 />
               </div>
@@ -1147,7 +1236,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                   className="form-input"
                   style={{ height: '40px' }}
                   value={simSellPrice || ''}
-                  onChange={(e) => handleSellPriceChange(Number(e.target.value))}
+                  onChange={(e) => handleSellPriceChange(parseDecimalInput(e.target.value))}
                 />
               </div>
 
@@ -1177,7 +1266,7 @@ export const Recipes: React.FC<RecipesProps> = ({ initialTriggerAdd, initialView
                     className="form-input"
                     style={{ height: '36px' }}
                     value={simSalesCount}
-                    onChange={(e) => setSimSalesCount(Number(e.target.value))}
+                    onChange={(e) => setSimSalesCount(parseDecimalInput(e.target.value))}
                   />
                 </div>
                 

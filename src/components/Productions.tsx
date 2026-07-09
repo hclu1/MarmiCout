@@ -1,11 +1,15 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
+import { parseDecimalInput } from '../utils';
 import {
   Plus,
   Sparkles,
   Calendar,
   AlertTriangle,
   CheckCircle2,
-  ChefHat
+  ChefHat,
+  X,
+  TrendingDown,
+  PackageCheck
 } from 'lucide-react';
 import { dbService, convertUnits } from '../services/db';
 import { Product, Recipe, Production } from '../types';
@@ -36,6 +40,13 @@ export const Productions: React.FC<ProductionsProps> = ({ initialTriggerAdd }) =
     missingIngredients: string[];
     ingredientsUsed: { name: string; required: number; available: number; unit: string }[];
   }>({ isFeasible: true, missingIngredients: [], ingredientsUsed: [] });
+
+  // Bandeau de succès après production
+  const [successBanner, setSuccessBanner] = useState<{
+    recipeName: string;
+    portions: number;
+    consumed: { name: string; required: number; unit: string }[];
+  } | null>(null);
 
   const loadData = () => {
     setProductions(dbService.getProductions().sort((a, b) => b.date.localeCompare(a.date)));
@@ -158,6 +169,16 @@ export const Productions: React.FC<ProductionsProps> = ({ initialTriggerAdd }) =
     const result = dbService.addProduction(newProd);
 
     if (result.success) {
+      // Capturer le résumé de consommation pour le bandeau de succès
+      setSuccessBanner({
+        recipeName: recipe.name,
+        portions: formPortions,
+        consumed: feasibility.ingredientsUsed.map(i => ({
+          name: i.name,
+          required: i.required,
+          unit: i.unit
+        }))
+      });
       setIsFormOpen(false);
       loadData();
     } else {
@@ -180,6 +201,57 @@ export const Productions: React.FC<ProductionsProps> = ({ initialTriggerAdd }) =
           </button>
         </div>
       </div>
+
+      {/* ── Bandeau de succès post-production ── */}
+      {successBanner && (
+        <div style={{
+          backgroundColor: 'var(--color-secondary-light)',
+          border: '1px solid rgba(50, 180, 100, 0.3)',
+          borderRadius: 'var(--radius-md)',
+          padding: '16px 20px',
+          marginBottom: '20px',
+          display: 'flex',
+          gap: '16px',
+          alignItems: 'flex-start',
+          position: 'relative'
+        }}>
+          <PackageCheck size={28} style={{ color: 'var(--color-secondary)', flexShrink: 0, marginTop: '2px' }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: '700', fontSize: '15px', color: 'var(--color-secondary)', marginBottom: '6px' }}>
+              ✅ Production enregistrée avec succès !
+            </div>
+            <div style={{ fontSize: '13px', marginBottom: '8px' }}>
+              <strong>{successBanner.portions} portions</strong> de <strong>« {successBanner.recipeName} »</strong> ont été produites et ajoutées à votre stock de produits finis.
+            </div>
+            {successBanner.consumed.length > 0 && (
+              <div style={{ fontSize: '12px', color: 'var(--color-dark-light)' }}>
+                <strong>Ingrédients/emballages déduits du stock :</strong>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                  {successBanner.consumed.map((c, i) => (
+                    <span key={i} style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '2px 8px',
+                      fontSize: '12px'
+                    }}>
+                      <TrendingDown size={11} style={{ verticalAlign: 'middle', marginRight: '3px', color: 'var(--color-danger)' }} />
+                      {c.name} : -{c.required.toFixed(2)} {c.unit}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => setSuccessBanner(null)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-dark-light)', padding: '2px', flexShrink: 0 }}
+            aria-label="Fermer"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
 
       {/* Liste de l'historique des productions */}
       <div className="table-container">
@@ -256,8 +328,10 @@ export const Productions: React.FC<ProductionsProps> = ({ initialTriggerAdd }) =
               className="btn btn-primary" 
               onClick={handleSaveProduction}
               disabled={!feasibility.isFeasible || !formRecipeId}
+              title="Valide la production et déduit immédiatement les ingrédients du stock"
             >
-              Lancer la production
+              <PackageCheck size={16} />
+              Confirmer &amp; déduire du stock
             </button>
           </>
         }
@@ -304,7 +378,7 @@ export const Productions: React.FC<ProductionsProps> = ({ initialTriggerAdd }) =
                 className="form-input"
                 required
                 value={formPortions}
-                onChange={(e) => setFormPortions(Number(e.target.value))}
+                onChange={(e) => setFormPortions(parseDecimalInput(e.target.value))}
               />
             </div>
 
@@ -319,9 +393,12 @@ export const Productions: React.FC<ProductionsProps> = ({ initialTriggerAdd }) =
             </div>
 
             {/* --- RAPPORT DE FAISABILITE & IMPACT STOCK --- */}
-            <h4 style={{ fontSize: '14px', fontWeight: '700', borderBottom: '1px solid var(--color-border)', paddingBottom: '6px', marginTop: '20px', marginBottom: '12px' }}>
-              Disponibilité des ingrédients & emballages
+            <h4 style={{ fontSize: '14px', fontWeight: '700', borderBottom: '1px solid var(--color-border)', paddingBottom: '6px', marginTop: '20px', marginBottom: '4px' }}>
+              Impact sur vos stocks
             </h4>
+            <p style={{ fontSize: '12px', color: 'var(--color-dark-light)', marginBottom: '12px' }}>
+              En confirmant, les quantités ci-dessous seront <strong>immédiatement déduites</strong> de vos stocks.
+            </p>
 
             {/* Alerte si stocks insuffisants */}
             {!feasibility.isFeasible && (
@@ -346,34 +423,54 @@ export const Productions: React.FC<ProductionsProps> = ({ initialTriggerAdd }) =
             )}
 
             {/* Liste des ingrédients prélevés */}
-            {formRecipeId && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px' }}>
-                {feasibility.ingredientsUsed.map((ing, idx) => {
-                  const hasEnough = ing.available >= ing.required;
-                  return (
-                    <div 
-                      key={idx} 
-                      style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        padding: '6px 8px', 
-                        backgroundColor: 'var(--color-light)', 
-                        border: '1px solid var(--color-border)',
-                        borderRadius: 'var(--radius-sm)',
-                        color: hasEnough ? 'inherit' : 'var(--color-danger)'
-                      }}
-                    >
-                      <strong>{ing.name}</strong>
-                      <div>
-                        <span>Requis : <strong>{ing.required.toFixed(2)} {ing.unit}</strong></span>
-                        <span style={{ marginLeft: '12px', color: 'var(--color-dark-light)' }}>
-                          (En stock : {ing.available.toFixed(2)} {ing.unit})
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
+            {formRecipeId && feasibility.ingredientsUsed.length > 0 && (
+              <div style={{ fontSize: '12px', overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ fontSize: '11px', color: 'var(--color-dark-light)', textAlign: 'left' }}>
+                      <th style={{ padding: '4px 8px', fontWeight: '600' }}>Ingrédient / Emballage</th>
+                      <th style={{ padding: '4px 8px', fontWeight: '600', textAlign: 'right' }}>À consommer</th>
+                      <th style={{ padding: '4px 8px', fontWeight: '600', textAlign: 'right' }}>En stock</th>
+                      <th style={{ padding: '4px 8px', fontWeight: '600', textAlign: 'right' }}>Restant après</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {feasibility.ingredientsUsed.map((ing, idx) => {
+                      const hasEnough = ing.available >= ing.required;
+                      const remaining = ing.available - ing.required;
+                      return (
+                        <tr
+                          key={idx}
+                          style={{
+                            backgroundColor: idx % 2 === 0 ? 'var(--color-light)' : 'transparent',
+                            borderBottom: '1px solid var(--color-border)'
+                          }}
+                        >
+                          <td style={{ padding: '6px 8px', fontWeight: '600', color: hasEnough ? 'inherit' : 'var(--color-danger)' }}>
+                            {ing.name}
+                          </td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--color-danger)', fontWeight: '600' }}>
+                            -{ing.required.toFixed(2)} {ing.unit}
+                          </td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                            {ing.available.toFixed(2)} {ing.unit}
+                          </td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '700', color: hasEnough ? 'var(--color-secondary)' : 'var(--color-danger)' }}>
+                            {remaining.toFixed(2)} {ing.unit}
+                            {hasEnough ? ' ✅' : ' ❌'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
+            )}
+
+            {formRecipeId && feasibility.ingredientsUsed.length === 0 && (
+              <p style={{ fontSize: '12px', color: 'var(--color-dark-light)', fontStyle: 'italic' }}>
+                Cette recette ne comporte pas d'ingrédients enregistrés.
+              </p>
             )}
 
           </form>

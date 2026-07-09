@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
+import { parseDecimalInput } from '../utils';
 import { 
   Settings as SettingsIcon, 
   Download, 
@@ -317,7 +318,7 @@ export const Settings: React.FC = () => {
                   min="0"
                   max="100"
                   value={defaultMargin}
-                  onChange={(e) => setDefaultMargin(Number(e.target.value))}
+                  onChange={(e) => setDefaultMargin(parseDecimalInput(e.target.value))}
                 />
               </div>
 
@@ -328,7 +329,7 @@ export const Settings: React.FC = () => {
                   className="form-input"
                   min="0"
                   value={minStock}
-                  onChange={(e) => setMinStock(Number(e.target.value))}
+                  onChange={(e) => setMinStock(parseDecimalInput(e.target.value))}
                 />
               </div>
             </div>

@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+﻿import React, { useState, useRef } from 'react';
+import { parseDecimalInput } from '../utils';
 import { Camera, Upload, RefreshCw, Check, ArrowLeft, Trash2, Link as LinkIcon, Info } from 'lucide-react';
 import { Product, Recipe, RecipeIngredient, RecipePackaging, Settings } from '../types';
 import { convertUnits } from '../services/db';
@@ -627,7 +628,7 @@ export const RecipeScanner: React.FC<RecipeScannerProps> = ({ onClose, onSave, p
                     className="form-input"
                     required
                     value={recipePortions}
-                    onChange={(e) => setRecipePortions(Number(e.target.value))}
+                    onChange={(e) => setRecipePortions(parseDecimalInput(e.target.value))}
                   />
                 </div>
               </div>
@@ -686,7 +687,7 @@ export const RecipeScanner: React.FC<RecipeScannerProps> = ({ onClose, onSave, p
                           className="form-input"
                           style={{ width: '60px', height: '36px', padding: '0 4px', textAlign: 'center' }}
                           value={ing.qtyUsed}
-                          onChange={(e) => handleIngredientChange(idx, 'qtyUsed', Number(e.target.value))}
+                          onChange={(e) => handleIngredientChange(idx, 'qtyUsed', parseDecimalInput(e.target.value))}
                         />
 
                         {/* Unité */}
@@ -741,7 +742,7 @@ export const RecipeScanner: React.FC<RecipeScannerProps> = ({ onClose, onSave, p
                               className="form-input"
                               style={{ width: '50px', height: '30px', padding: '0 4px', fontSize: '12px', textAlign: 'center' }}
                               value={ing.customCostPerUnit}
-                              onChange={(e) => handleIngredientChange(idx, 'customCostPerUnit', Number(e.target.value))}
+                              onChange={(e) => handleIngredientChange(idx, 'customCostPerUnit', parseDecimalInput(e.target.value))}
                               title="Coût estimé par unité de cet ingrédient"
                             />
                             <span style={{ fontSize: '11px' }}>€/{ing.unit}</span>

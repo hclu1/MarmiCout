@@ -11,19 +11,32 @@ import {
   Settings
 } from '../types';
 
-// Clés LocalStorage
-const KEYS = {
-  PRODUCTS: 'marmicout_products',
-  PURCHASES: 'marmicout_purchases',
-  STORES: 'marmicout_stores',
-  RECIPES: 'marmicout_recipes',
-  RECIPE_INGREDIENTS: 'marmicout_recipe_ingredients',
-  RECIPE_PACKAGING: 'marmicout_recipe_packaging',
-  PRODUCTIONS: 'marmicout_productions',
-  SALES: 'marmicout_sales',
-  STOCK_MOVEMENTS: 'marmicout_stock_movements',
-  SETTINGS: 'marmicout_settings'
+// Détection du code testeur dans l'URL (ex: ?code=cook1 ou ?code=michel)
+const getTesterCode = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  return params.get('code');
 };
+
+const testerCode = getTesterCode();
+const prefix = testerCode ? `${testerCode.trim().toLowerCase()}_` : '';
+
+// Clés LocalStorage dynamiques selon le testeur
+const KEYS = {
+  PRODUCTS: `${prefix}marmicout_products`,
+  PURCHASES: `${prefix}marmicout_purchases`,
+  STORES: `${prefix}marmicout_stores`,
+  RECIPES: `${prefix}marmicout_recipes`,
+  RECIPE_INGREDIENTS: `${prefix}marmicout_recipe_ingredients`,
+  RECIPE_PACKAGING: `${prefix}marmicout_recipe_packaging`,
+  PRODUCTIONS: `${prefix}marmicout_productions`,
+  SALES: `${prefix}marmicout_sales`,
+  STOCK_MOVEMENTS: `${prefix}marmicout_stock_movements`,
+  SETTINGS: `${prefix}marmicout_settings`
+};
+
+export const getActiveTesterCode = (): string | null => testerCode;
+
 
 // --- LOGIQUE DE CONVERSION DES UNITES ---
 export function convertUnits(qty: number, fromUnit: string, toUnit: string): number {
