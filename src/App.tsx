@@ -10,7 +10,8 @@ import {
   Settings as SettingsIcon,
   AlertTriangle,
   Plus,
-  Camera
+  Camera,
+  MessageSquare
 } from 'lucide-react';
 import './App.css'; // Nous allons vider ce fichier pour éviter les conflits
 
@@ -24,11 +25,12 @@ import { Sales } from './components/Sales';
 import { Stores } from './components/Stores';
 import { Settings } from './components/Settings';
 import { Drawer } from './components/Drawer';
+import { Suggestions } from './components/Suggestions';
 
 import { dbService, getActiveTesterCode } from './services/db';
 import { APP_VERSION } from './version';
 
-type Tab = 'Dashboard' | 'Produits' | 'Achats' | 'Recettes' | 'Production' | 'Ventes' | 'Magasins' | 'Paramètres';
+type Tab = 'Dashboard' | 'Produits' | 'Achats' | 'Recettes' | 'Production' | 'Ventes' | 'Magasins' | 'Paramètres' | 'Suggestions';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('Dashboard');
@@ -79,7 +81,8 @@ function App() {
     { id: 'Production', label: 'Productions Lot', icon: Sparkles },
     { id: 'Ventes', label: 'Ventes & Profits', icon: DollarSign },
     { id: 'Magasins', label: 'Fournisseurs', icon: Store },
-    { id: 'Paramètres', label: 'Paramètres & Sync', icon: SettingsIcon }
+    { id: 'Paramètres', label: 'Paramètres & Sync', icon: SettingsIcon },
+    { id: 'Suggestions', label: 'Suggestions', icon: MessageSquare }
   ];
 
   // Rendu de la vue active
@@ -118,6 +121,8 @@ function App() {
         return <Stores />;
       case 'Paramètres':
         return <Settings />;
+      case 'Suggestions':
+        return <Suggestions />;
       default:
         return <Dashboard onNavigate={handleNavigate} />;
     }
