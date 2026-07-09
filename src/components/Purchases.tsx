@@ -35,9 +35,9 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
   // Valeurs du formulaire d'achat
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
   const [formProductId, setFormProductId] = useState('');
-  const [formQty, setFormQty] = useState(1);
+  const [formQty, setFormQty] = useState('1');
   const [formUnit, setFormUnit] = useState('kg');
-  const [formPricePaid, setFormPricePaid] = useState(0);
+  const [formPricePaid, setFormPricePaid] = useState('');
   const [formStoreId, setFormStoreId] = useState('');
   const [formBatchNo, setFormBatchNo] = useState('');
   const [formExpiryDate, setFormExpiryDate] = useState('');
@@ -61,8 +61,8 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
   const handleOpenAddForm = () => {
     setFormDate(new Date().toISOString().split('T')[0]);
     setFormProductId(products[0]?.id || '');
-    setFormQty(1);
-    setFormPricePaid(0);
+    setFormQty('1');
+    setFormPricePaid('');
     setFormStoreId(stores[0]?.id || '');
     setFormBatchNo('');
     setFormExpiryDate('');
@@ -191,11 +191,14 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
       alert("Veuillez sélectionner ou scanner un produit");
       return;
     }
-    if (formQty <= 0) {
+    const qtyNum = parseDecimalInput(formQty);
+    const pricePaidNum = parseDecimalInput(formPricePaid);
+
+    if (qtyNum <= 0) {
       alert("La quantité doit être supérieure à 0");
       return;
     }
-    if (formPricePaid <= 0) {
+    if (pricePaidNum <= 0) {
       alert("Le prix payé doit être supérieur à 0");
       return;
     }
@@ -204,10 +207,10 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
       id: 'A_' + Date.now(),
       date: formDate,
       productId: formProductId,
-      qty: formQty,
+      qty: qtyNum,
       unit: formUnit,
-      pricePaid: formPricePaid,
-      unitPrice: Number((formPricePaid / formQty).toFixed(4)),
+      pricePaid: pricePaidNum,
+      unitPrice: Number((pricePaidNum / qtyNum).toFixed(4)),
       storeId: formStoreId,
       batchNo: formBatchNo.trim() || undefined,
       expiryDate: formExpiryDate || undefined,
@@ -240,7 +243,9 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
     }
   };
 
-  const calculatedUnitPrice = formQty > 0 ? (formPricePaid / formQty).toFixed(2) : '0.00';
+  const qtyNum = parseDecimalInput(formQty);
+  const pricePaidNum = parseDecimalInput(formPricePaid);
+  const calculatedUnitPrice = qtyNum > 0 ? (pricePaidNum / qtyNum).toFixed(2) : '0.00';
 
   return (
     <div>
@@ -425,8 +430,8 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
                   style={{ flex: 1 }}
                   required
                   placeholder="0"
-                  value={formQty === 0 ? '' : formQty}
-                  onChange={(e) => setFormQty(parseDecimalInput(e.target.value))}
+                  value={formQty}
+                  onChange={(e) => setFormQty(e.target.value)}
                 />
                 <span className="form-input" style={{ width: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-light)', border: '1px solid var(--color-border)' }}>
                   {formUnit}
@@ -442,8 +447,8 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
                 className="form-input"
                 required
                 placeholder="0.00"
-                value={formPricePaid === 0 ? '' : formPricePaid}
-                onChange={(e) => setFormPricePaid(parseDecimalInput(e.target.value))}
+                value={formPricePaid}
+                onChange={(e) => setFormPricePaid(e.target.value)}
               />
             </div>
           </div>

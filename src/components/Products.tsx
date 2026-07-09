@@ -43,9 +43,9 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
   const [formUnit, setFormUnit] = useState('');
   const [formBrand, setFormBrand] = useState('');
   const [formFormat, setFormFormat] = useState('');
-  const [formStock, setFormStock] = useState(0);
-  const [formMinStock, setFormMinStock] = useState(settings.defaultMinStockAlert);
-  const [formAvgPrice, setFormAvgPrice] = useState(0);
+  const [formStock, setFormStock] = useState('');
+  const [formMinStock, setFormMinStock] = useState(settings.defaultMinStockAlert.toString());
+  const [formAvgPrice, setFormAvgPrice] = useState('');
   const [formMainStore, setFormMainStore] = useState('');
   const [formNotes, setFormNotes] = useState('');
   const [formIsActive, setFormIsActive] = useState(true);
@@ -74,9 +74,9 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
     setFormUnit(settings.units[0] || 'kg');
     setFormBrand('');
     setFormFormat('Unité');
-    setFormStock(0);
-    setFormMinStock(settings.defaultMinStockAlert);
-    setFormAvgPrice(0);
+    setFormStock('');
+    setFormMinStock(settings.defaultMinStockAlert.toString());
+    setFormAvgPrice('');
     setFormMainStore(stores[0]?.id || '');
     setFormNotes('');
     setFormIsActive(true);
@@ -102,9 +102,9 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
     setFormUnit(prod.unit);
     setFormBrand(prod.brand);
     setFormFormat(prod.format);
-    setFormStock(prod.stock);
-    setFormMinStock(prod.minStockAlert);
-    setFormAvgPrice(prod.avgPurchasePrice);
+    setFormStock(prod.stock.toString());
+    setFormMinStock(prod.minStockAlert.toString());
+    setFormAvgPrice(prod.avgPurchasePrice.toString());
     setFormMainStore(prod.mainStoreId);
     setFormNotes(prod.notes);
     setFormIsActive(prod.isActive);
@@ -123,6 +123,10 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
     e.preventDefault();
     if (!formName.trim()) return;
 
+    const stockNum = parseDecimalInput(formStock);
+    const minStockNum = parseDecimalInput(formMinStock);
+    const avgPriceNum = parseDecimalInput(formAvgPrice);
+
     const updatedProduct: Product = {
       id: editingProduct ? editingProduct.id : 'P_' + Date.now(),
       barcode: formBarcode.trim(),
@@ -131,9 +135,9 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
       unit: formUnit,
       brand: formBrand.trim(),
       format: formFormat.trim(),
-      stock: formStock,
-      minStockAlert: formMinStock,
-      avgPurchasePrice: formAvgPrice,
+      stock: stockNum,
+      minStockAlert: minStockNum,
+      avgPurchasePrice: avgPriceNum,
       mainStoreId: formMainStore,
       notes: formNotes.trim(),
       isActive: formIsActive
@@ -142,12 +146,12 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
     dbService.saveProduct(updatedProduct);
     
     // Si c'est un nouveau produit et qu'il y a un stock initial > 0, on enregistre un mouvement de stock
-    if (!editingProduct && formStock > 0) {
+    if (!editingProduct && stockNum > 0) {
       dbService.addStockMovement({
         id: 'SM_' + Date.now(),
         date: new Date().toISOString().split('T')[0],
         productId: updatedProduct.id,
-        qty: formStock,
+        qty: stockNum,
         type: 'AJUSTEMENT',
         refId: 'MANUAL',
         notes: 'Stock initial renseigné à la création'
@@ -479,9 +483,9 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
                 type="text"
                 inputMode="decimal"
                 className="form-input"
-                value={formStock === 0 ? '' : formStock}
+                value={formStock}
                 placeholder="0"
-                onChange={(e) => setFormStock(parseDecimalInput(e.target.value))}
+                onChange={(e) => setFormStock(e.target.value)}
                 disabled={editingProduct !== null} // Désactivé en édition (doit passer par Achat ou Ajustement)
               />
             </div>
@@ -492,9 +496,9 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
                 type="text"
                 inputMode="decimal"
                 className="form-input"
-                value={formMinStock === 0 ? '' : formMinStock}
+                value={formMinStock}
                 placeholder="0"
-                onChange={(e) => setFormMinStock(parseDecimalInput(e.target.value))}
+                onChange={(e) => setFormMinStock(e.target.value)}
               />
             </div>
           </div>
@@ -506,9 +510,9 @@ export const Products: React.FC<ProductsProps> = ({ initialTriggerAdd, onNavigat
                 type="text"
                 inputMode="decimal"
                 className="form-input"
-                value={formAvgPrice === 0 ? '' : formAvgPrice}
+                value={formAvgPrice}
                 placeholder="0.00"
-                onChange={(e) => setFormAvgPrice(parseDecimalInput(e.target.value))}
+                onChange={(e) => setFormAvgPrice(e.target.value)}
                 disabled={editingProduct !== null} // En édition, c'est calculé via les achats
               />
             </div>
