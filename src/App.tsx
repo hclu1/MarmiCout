@@ -11,7 +11,9 @@ import {
   AlertTriangle,
   Plus,
   Camera,
-  MessageSquare
+  MessageSquare,
+  FileText,
+  Mail
 } from 'lucide-react';
 import './App.css'; // Nous allons vider ce fichier pour éviter les conflits
 
@@ -26,11 +28,13 @@ import { Stores } from './components/Stores';
 import { Settings } from './components/Settings';
 import { Drawer } from './components/Drawer';
 import { Suggestions } from './components/Suggestions';
+import { QuoteRequest } from './components/QuoteRequest';
+import { Contact } from './components/Contact';
 
 import { dbService, getActiveTesterCode } from './services/db';
 import { APP_VERSION } from './version';
 
-type Tab = 'Dashboard' | 'Produits' | 'Achats' | 'Recettes' | 'Production' | 'Ventes' | 'Magasins' | 'Paramètres' | 'Suggestions';
+type Tab = 'Dashboard' | 'Produits' | 'Achats' | 'Recettes' | 'Production' | 'Ventes' | 'Magasins' | 'Paramètres' | 'Suggestions' | 'Devis' | 'Contact';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('Dashboard');
@@ -82,7 +86,9 @@ function App() {
     { id: 'Ventes', label: 'Ventes & Profits', icon: DollarSign },
     { id: 'Magasins', label: 'Fournisseurs', icon: Store },
     { id: 'Paramètres', label: 'Paramètres & Sync', icon: SettingsIcon },
-    { id: 'Suggestions', label: 'Suggestions', icon: MessageSquare }
+    { id: 'Suggestions', label: 'Suggestions', icon: MessageSquare },
+    { id: 'Devis', label: 'Demande de devis', icon: FileText },
+    { id: 'Contact', label: 'Contact', icon: Mail }
   ];
 
   // Rendu de la vue active
@@ -123,6 +129,10 @@ function App() {
         return <Settings />;
       case 'Suggestions':
         return <Suggestions />;
+      case 'Devis':
+        return <QuoteRequest />;
+      case 'Contact':
+        return <Contact />;
       default:
         return <Dashboard onNavigate={handleNavigate} />;
     }
