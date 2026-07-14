@@ -89,50 +89,103 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
       }
     }
 
-    // Parser chaque ligne pour détecter des formats d'articles : [Nom] [Qté/Nombre] [Prix]
-    // Exemple : "Farine T55 10 kg 15.00" ou "2x Pot en verre 24.50"
-    const lineItemRegex = /^([a-zA-ZÀ-ÿ0-9\s'-]+?)\s+(\d+)\s*(kg|g|l|ml|cl|pièce|pièces|sachet|u|unit|units)?\s+([\d,.]+)\s*(?:€|\$|EUR)?$/i;
+    // Mots-clés de lignes à ignorer : en-têtes, mentions légales, totaux, coordonnées...
+    // (tout ce qui n'est pas une ligne "produit / quantité / prix")
+    const EXCLUDE_KEYWORDS = [
+      'total', 'sous-total', 'sous total', 'tva', 'ttc', 'ht ', ' ht', 'siret', 'siren',
+      'tel', 'tél', 'fax', 'email', 'e-mail', 'iban', 'bic', 'rib', 'adresse', 'cedex',
+      'page', 'facture n', 'n° facture', 'numéro de facture', 'référence', 'reference',
+      'client', 'livraison', 'règlement', 'reglement', 'paiement', 'échéance', 'echeance',
+      'remise', 'escompte', 'capital', 'rcs', 'naf', 'ape', 'code postal', 'www.', 'http',
+      'bon de commande', 'devis', 'conditions', 'merci'
+    ];
+
+    // Écarte les lignes qui ne peuvent pas être une ligne d'article : en-têtes/légal,
+    // ou lignes quasi entièrement numériques (SIRET, téléphone, IBAN, code postal...)
+    const isExcludedLine = (line: string): boolean => {
+      const lower = line.toLowerCase();
+      if (EXCLUDE_KEYWORDS.some(k => lower.includes(k))) return true;
+      const compact = line.replace(/\s/g, '');
+      const digitsOnly = compact.replace(/[^0-9]/g, '');
+      if (digitsOnly.length >= 8 && digitsOnly.length / compact.length > 0.6) return true;
+      if (/^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(line.trim())) return true;
+      return false;
+    };
+
+    // Une ligne d'article plausible a un nom lisible (au moins un mot de 2 lettres),
+    // une quantité et un prix dans des bornes réalistes pour une facture d'épicerie/traiteur.
+    const isPlausibleItem = (name: string, qty: number, price: number): boolean => {
+      if (!/[a-zA-ZÀ-ÿ]{2,}/.test(name)) return false;
+      if (!isFinite(qty) || qty <= 0 || qty > 9999) return false;
+      if (!isFinite(price) || price <= 0 || price > 99999) return false;
+      return true;
+    };
+
+    const normalizeUnit = (raw: string | undefined): string => {
+      const unit = (raw || 'pièce').trim().toLowerCase();
+      if (unit.startsWith('kg')) return 'kg';
+      if (unit.startsWith('g')) return 'g';
+      if (unit.startsWith('l')) return 'l';
+      if (unit.startsWith('ml')) return 'ml';
+      if (unit.startsWith('cl')) return 'cl';
+      return 'pièce';
+    };
+
+    // Format A (le plus courant sur une vraie facture fournisseur) :
+    // [Nom] [Qté] [Unité?] [Prix Unitaire] [Montant total]
+    // Exemple : "Farine T55 25 kg 1,20 30,00" → qté 25 kg à 1,20€/kg (30,00€ au total)
+    const lineItemRegexWithTotal = /^([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ0-9\s'-]{1,60}?)\s+(\d+(?:[.,]\d+)?)\s*(kg|g|l|ml|cl|pièce|pièces|sachet|u|unit|units)?\s+(\d+[.,]\d{2})\s+\d+[.,]\d{2}\s*(?:€|\$|EUR)?$/i;
+
+    // Format B (une seule valeur monétaire) : [Nom] [Qté] [Unité?] [Montant total de la ligne]
+    // Exemple : "2x Pot en verre 24.50" → le prix détecté est divisé par la quantité
+    const lineItemRegexTotalOnly = /^([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ0-9\s'-]{1,60}?)\s+(\d+(?:[.,]\d+)?)\s*(kg|g|l|ml|cl|pièce|pièces|sachet|u|unit|units)?\s+(\d+[.,]\d{2})\s*(?:€|\$|EUR)?$/i;
 
     lines.forEach(line => {
-      const match = line.match(lineItemRegex);
-      if (match) {
-        const name = match[1].trim();
-        const qty = parseFloat(match[2]);
-        let unit = match[3] || 'pièce';
-        const price = parseFloat(match[4].replace(',', '.'));
+      if (isExcludedLine(line)) return;
 
-        // Normaliser les unités
-        unit = unit.trim().toLowerCase();
-        if (unit.startsWith('kg')) unit = 'kg';
-        else if (unit.startsWith('g')) unit = 'g';
-        else if (unit.startsWith('l')) unit = 'l';
-        else if (unit.startsWith('ml')) unit = 'ml';
-        else if (unit.startsWith('cl')) unit = 'cl';
-        else unit = 'pièce';
+      const matchWithTotal = line.match(lineItemRegexWithTotal);
+      if (matchWithTotal) {
+        const name = matchWithTotal[1].trim();
+        const qty = parseFloat(matchWithTotal[2].replace(',', '.'));
+        const unit = normalizeUnit(matchWithTotal[3]);
+        const unitPrice = parseFloat(matchWithTotal[4].replace(',', '.'));
 
-        if (!isNaN(qty) && !isNaN(price) && qty > 0) {
-          items.push({
-            name,
-            qty,
-            unitPrice: Number((price / qty).toFixed(4)),
-            unit
-          });
+        if (isPlausibleItem(name, qty, unitPrice)) {
+          items.push({ name, qty, unitPrice, unit });
+          return;
+        }
+      }
+
+      const matchTotalOnly = line.match(lineItemRegexTotalOnly);
+      if (matchTotalOnly) {
+        const name = matchTotalOnly[1].trim();
+        const qty = parseFloat(matchTotalOnly[2].replace(',', '.'));
+        const unit = normalizeUnit(matchTotalOnly[3]);
+        const total = parseFloat(matchTotalOnly[4].replace(',', '.'));
+        const unitPrice = Number((total / qty).toFixed(4));
+
+        if (isPlausibleItem(name, qty, unitPrice)) {
+          items.push({ name, qty, unitPrice, unit });
         }
       }
     });
 
-    // Si aucune ligne n'a été détectée avec la regex stricte, utiliser un algorithme de secours plus souple
+    // Si aucune ligne n'a été détectée avec la regex stricte, utiliser un algorithme de secours
+    // plus souple, mais qui exige tout de même un prix au format monétaire (ex: 12,50) pour
+    // ne pas confondre une date, un code ou un numéro de téléphone avec un article.
     if (items.length === 0) {
       lines.forEach(line => {
-        if (line.toLowerCase().includes('total') || line.toLowerCase().includes('facture')) return;
-        const numbers = line.match(/[\d,.]+/g);
-        if (numbers && numbers.length >= 2) {
+        if (isExcludedLine(line)) return;
+
+        const numbers = line.match(/\d+(?:[.,]\d+)?/g);
+        const hasMonetaryValue = /\d+[.,]\d{2}(?!\d)/.test(line);
+        if (numbers && numbers.length >= 2 && hasMonetaryValue) {
           // Supposons que le dernier nombre est le prix total et le premier est la quantité
           const qty = parseFloat(numbers[0].replace(',', '.'));
           const totalPaid = parseFloat(numbers[numbers.length - 1].replace(',', '.'));
-          const namePart = line.replace(/[\d,.]+/g, '').replace(/[€$]/g, '').trim();
+          const namePart = line.replace(/\d+(?:[.,]\d+)?/g, '').replace(/[€$]/g, '').trim();
 
-          if (!isNaN(qty) && !isNaN(totalPaid) && qty > 0 && namePart.length > 2) {
+          if (isPlausibleItem(namePart, qty, totalPaid)) {
             items.push({
               name: namePart,
               qty,
