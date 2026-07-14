@@ -373,6 +373,42 @@ function App() {
           </button>
 
           <button
+            className="btn btn-secondary"
+            style={{ height: '50px', justifyContent: 'flex-start', paddingLeft: '20px' }}
+            onClick={() => {
+              setIsMobileActionOpen(false);
+              handleNavigate('Suggestions');
+            }}
+          >
+            <MessageSquare size={18} style={{ marginRight: '12px', color: 'var(--color-primary)' }} />
+            Boîte à suggestions
+          </button>
+
+          <button
+            className="btn btn-secondary"
+            style={{ height: '50px', justifyContent: 'flex-start', paddingLeft: '20px' }}
+            onClick={() => {
+              setIsMobileActionOpen(false);
+              handleNavigate('Devis');
+            }}
+          >
+            <FileText size={18} style={{ marginRight: '12px', color: 'var(--color-primary)' }} />
+            Demande de devis
+          </button>
+
+          <button
+            className="btn btn-secondary"
+            style={{ height: '50px', justifyContent: 'flex-start', paddingLeft: '20px' }}
+            onClick={() => {
+              setIsMobileActionOpen(false);
+              handleNavigate('Contact');
+            }}
+          >
+            <Mail size={18} style={{ marginRight: '12px', color: 'var(--color-primary)' }} />
+            Contact
+          </button>
+
+          <button
             className="btn btn-danger"
             style={{ height: '44px', marginTop: '12px' }}
             onClick={() => setIsMobileActionOpen(false)}
