@@ -31,13 +31,14 @@ import { Drawer } from './components/Drawer';
 import { Suggestions } from './components/Suggestions';
 import { QuoteRequest } from './components/QuoteRequest';
 import { Contact } from './components/Contact';
+import { QRCodePage } from './components/QRCodePage';
 import { ExpiredScreen } from './components/ExpiredScreen';
 
 import { dbService, getActiveTesterCode } from './services/db';
 import { markTesterCodeIssued, isTesterCodeExpired, getTesterCodeExpiryDate } from './services/testerCodes';
 import { APP_VERSION } from './version';
 
-type Tab = 'Dashboard' | 'Produits' | 'Achats' | 'Recettes' | 'Production' | 'Ventes' | 'Magasins' | 'Paramètres' | 'Suggestions' | 'Devis' | 'Contact';
+type Tab = 'Dashboard' | 'Produits' | 'Achats' | 'Recettes' | 'Production' | 'Ventes' | 'Magasins' | 'Paramètres' | 'Suggestions' | 'Devis' | 'Contact' | 'QR Code';
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('Dashboard');
@@ -102,7 +103,8 @@ function App() {
     { id: 'Paramètres', label: 'Paramètres & Sync', icon: SettingsIcon },
     { id: 'Suggestions', label: 'Suggestions', icon: MessageSquare },
     { id: 'Devis', label: 'Demande de devis', icon: FileText },
-    { id: 'Contact', label: 'Contact', icon: Mail }
+    { id: 'Contact', label: 'Contact', icon: Mail },
+    { id: 'QR Code', label: 'QR Code', icon: QrCode }
   ];
 
   // Rendu de la vue active
@@ -147,6 +149,8 @@ function App() {
         return <QuoteRequest />;
       case 'Contact':
         return <Contact />;
+      case 'QR Code':
+        return <QRCodePage />;
       default:
         return <Dashboard onNavigate={handleNavigate} />;
     }
@@ -427,11 +431,11 @@ function App() {
             style={{ height: '50px', justifyContent: 'flex-start', paddingLeft: '20px' }}
             onClick={() => {
               setIsMobileActionOpen(false);
-              handleNavigate('Contact');
+              handleNavigate('QR Code');
             }}
           >
             <QrCode size={18} style={{ marginRight: '12px', color: 'var(--color-primary)' }} />
-            Inviter un testeur (QR code)
+            QR Code
           </button>
 
           <button

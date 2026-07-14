@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Send, Mail, Copy, Check, Info, MessageCircle, MapPin } from 'lucide-react';
-import { InviteQRCode } from './InviteQRCode';
 
 export const Contact: React.FC = () => {
   const [name, setName] = useState('');
@@ -62,10 +61,6 @@ Généré depuis l'application MarmiCout`;
             Une question, une remarque ou besoin d'assistance ? Écrivez-nous directement.
           </p>
         </div>
-      </div>
-
-      <div style={{ marginBottom: '24px' }}>
-        <InviteQRCode />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', alignItems: 'start' }}>
