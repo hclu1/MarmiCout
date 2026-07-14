@@ -1,8 +1,13 @@
 import React, { useState, useRef } from 'react';
+import { createWorker } from 'tesseract.js';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { parseDecimalInput } from '../utils';
 import { Camera, Upload, RefreshCw, Check, ArrowLeft, Trash2, Link as LinkIcon, Info, FileText } from 'lucide-react';
 import { Product, Purchase, Store, Settings } from '../types';
 import { dbService } from '../services/db';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 interface InvoiceScannerProps {
   onClose: () => void;
@@ -11,39 +16,6 @@ interface InvoiceScannerProps {
   stores: Store[];
   settings: Settings;
 }
-
-// Factures de démonstration pour simuler le scanneur de manière réaliste
-const MOCK_INVOICES = [
-  {
-    id: 'inv_metro',
-    storeName: 'Metro Lyon',
-    date: new Date().toISOString().split('T')[0],
-    items: [
-      { name: 'Farine de Blé T55', qty: 25, unitPrice: 1.20, unit: 'kg' },
-      { name: 'Sucre en Poudre', qty: 10, unitPrice: 1.45, unit: 'kg' },
-      { name: 'Pots en Verre 375ml', qty: 48, unitPrice: 0.72, unit: 'pièce' },
-      { name: 'Barquettes Carton 28cm', qty: 100, unitPrice: 0.18, unit: 'pièce' }
-    ]
-  },
-  {
-    id: 'inv_biocoop',
-    storeName: 'Biocoop La Source',
-    date: new Date().toISOString().split('T')[0],
-    items: [
-      { name: 'Pommes Golden des Alpes', qty: 15, unitPrice: 2.10, unit: 'kg' },
-      { name: 'Abricots du Roussillon', qty: 10, unitPrice: 3.50, unit: 'kg' }
-    ]
-  },
-  {
-    id: 'inv_grandfrais',
-    storeName: 'Grand Frais',
-    date: new Date().toISOString().split('T')[0],
-    items: [
-      { name: 'Beurre Doux Gastronomique', qty: 6, unitPrice: 7.90, unit: 'kg' },
-      { name: 'Lait Demi-Écrémé', qty: 12, unitPrice: 0.95, unit: 'l' }
-    ]
-  }
-];
 
 export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave, products, stores, settings }) => {
   const [step, setStep] = useState<'idle' | 'analyzing' | 'validating'>('idle');
@@ -85,54 +57,14 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
     return matched ? matched.id : '';
   };
 
-  // Simuler le processus d'analyse OCR de la facture
-  const launchOCR = (mockData: typeof MOCK_INVOICES[0], imageBase64: string | null) => {
-    setStep('analyzing');
-    setSourceImage(imageBase64);
-    
-    let currentConf = 0;
-    const interval = setInterval(() => {
-      currentConf += 6;
-      if (currentConf >= 96) {
-        currentConf = 96;
-        clearInterval(interval);
-      }
-      setConfidence(currentConf);
-    }, 80);
-
-    setTimeout(() => {
-      clearInterval(interval);
-      setConfidence(96);
-
-      // Trouver le magasin correspondant
-      const matchedStore = stores.find(s => s.name.toLowerCase().includes(mockData.storeName.toLowerCase()));
-      setInvoiceStoreId(matchedStore ? matchedStore.id : (stores[0]?.id || ''));
-      setInvoiceDate(mockData.date);
-      setInvoiceNotes(`Facture importée automatiquement via scanner (${mockData.storeName})`);
-
-      // Mapper les lignes d'articles et faire les liaisons automatiques avec le stock
-      const mapped = mockData.items.map(item => {
-        const matchedProductId = autoMapProduct(item.name);
-        return {
-          name: item.name,
-          qty: item.qty,
-          unitPrice: item.unitPrice,
-          unit: item.unit,
-          productId: matchedProductId
-        };
-      });
-
-      setExtractedItems(mapped);
-      setStep('validating');
-    }, 1500);
-  };
-
-  // Parser textuel pour les fichiers texte ou docx de factures
-  const parseInvoiceFromText = (text: string): {
+  // Parser textuel pour les fichiers texte, PDF ou le résultat de l'OCR d'une photo
+  const parseInvoiceFromText = (rawText: string): {
     storeName: string;
     date: string;
     items: { name: string; qty: number; unitPrice: number; unit: string }[];
   } => {
+    // Nettoyage du texte brut (espaces insécables et doublés fréquents en sortie OCR)
+    const text = rawText.replace(/\u00A0/g, ' ').replace(/[ \t]+/g, ' ');
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
     const items: { name: string; qty: number; unitPrice: number; unit: string }[] = [];
     let storeName = stores[0]?.name || "Fournisseur Inconnu";
@@ -215,51 +147,97 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
     return { storeName, date, items };
   };
 
-  const launchFileAnalysis = (fileName: string, text: string) => {
+  // Termine l'analyse d'une facture : parse le texte extrait (OCR, PDF ou .txt)
+  // et tente de relier chaque ligne détectée à un produit du stock.
+  const finishAnalysis = (fileName: string, text: string, imageBase64: string | null, ocrConfidence: number | null) => {
+    const parsed = parseInvoiceFromText(text);
+
+    const matchedStore = stores.find(s => s.name.toLowerCase().includes(parsed.storeName.toLowerCase()));
+    setInvoiceStoreId(matchedStore ? matchedStore.id : (stores[0]?.id || ''));
+    setInvoiceDate(parsed.date);
+    setInvoiceNotes(`Facture importée depuis ${fileName}`);
+    setSourceImage(imageBase64);
+    if (ocrConfidence !== null) setConfidence(Math.round(ocrConfidence));
+
+    const mapped = parsed.items.map(item => ({
+      name: item.name,
+      qty: item.qty,
+      unitPrice: item.unitPrice,
+      unit: item.unit,
+      productId: autoMapProduct(item.name)
+    }));
+
+    if (mapped.length === 0) {
+      alert("Aucune ligne d'article n'a pu être détectée automatiquement sur cette facture. Vous pouvez les ajouter manuellement ci-dessous avec le bouton \"Ajouter une ligne\".");
+    }
+
+    setExtractedItems(mapped);
+    setStep('validating');
+  };
+
+  // Lecture réelle d'une photo de facture par OCR (reconnaissance de texte locale, dans le navigateur)
+  const analyzeImage = async (file: File) => {
     setStep('analyzing');
-    setSourceImage(null);
     setConfidence(0);
 
-    let currentConf = 0;
-    const interval = setInterval(() => {
-      currentConf += 10;
-      if (currentConf >= 95) {
-        currentConf = 95;
-        clearInterval(interval);
-      }
-      setConfidence(currentConf);
-    }, 70);
+    const base64: string = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
 
-    setTimeout(() => {
-      clearInterval(interval);
-      setConfidence(95);
-
-      const parsed = parseInvoiceFromText(text);
-
-      const matchedStore = stores.find(s => s.name.toLowerCase().includes(parsed.storeName.toLowerCase()));
-      setInvoiceStoreId(matchedStore ? matchedStore.id : (stores[0]?.id || ''));
-      setInvoiceDate(parsed.date);
-      setInvoiceNotes(`Facture importée depuis le fichier ${fileName}`);
-
-      const mapped = parsed.items.map(item => {
-        const matchedProductId = autoMapProduct(item.name);
-        return {
-          name: item.name,
-          qty: item.qty,
-          unitPrice: item.unitPrice,
-          unit: item.unit,
-          productId: matchedProductId
-        };
+    try {
+      const worker = await createWorker('fra', undefined, {
+        logger: m => {
+          if (typeof m.progress === 'number') setConfidence(Math.round(m.progress * 100));
+        }
       });
+      const { data } = await worker.recognize(base64);
+      await worker.terminate();
+      finishAnalysis(file.name, data.text, base64, data.confidence);
+    } catch (err) {
+      console.error('Erreur OCR', err);
+      alert("La lecture automatique (OCR) de la photo a échoué. Réessayez avec une photo plus nette, bien cadrée, à plat et sans reflet.");
+      setStep('idle');
+    }
+  };
 
-      setExtractedItems(mapped);
-      setStep('validating');
-    }, 1200);
+  // Extraction du texte intégré d'un PDF de facture (factures numériques envoyées par email)
+  const analyzePdf = async (file: File) => {
+    setStep('analyzing');
+    setConfidence(0);
+    setSourceImage(null);
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let fullText = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        fullText += content.items.map(item => ('str' in item ? item.str : '')).join(' ') + '\n';
+        setConfidence(Math.round((i / pdf.numPages) * 100));
+      }
+
+      if (fullText.trim().length < 20) {
+        alert("Ce PDF semble être une image scannée sans texte intégré : la lecture automatique n'est pas possible sur ce type de fichier. Prenez plutôt une photo de la facture avec l'appareil photo.");
+        setStep('idle');
+        return;
+      }
+
+      finishAnalysis(file.name, fullText, null, 100);
+    } catch (err) {
+      console.error('Erreur extraction PDF', err);
+      alert("Impossible de lire ce fichier PDF.");
+      setStep('idle');
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = '';
 
     const fileName = file.name.toLowerCase();
 
@@ -267,18 +245,16 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
       const reader = new FileReader();
       reader.onload = (event) => {
         const text = event.target?.result as string;
-        launchFileAnalysis(file.name, text);
+        setStep('analyzing');
+        setSourceImage(null);
+        setConfidence(100);
+        finishAnalysis(file.name, text, null, null);
       };
       reader.readAsText(file);
-    } else if (file.type.startsWith('image/') || fileName.endsWith('.pdf') || file.type === 'application/pdf') {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = fileName.endsWith('.pdf') ? null : (event.target?.result as string);
-        // Choisir une facture de démonstration au hasard pour la simulation
-        const randomInvoice = MOCK_INVOICES[Math.floor(Math.random() * MOCK_INVOICES.length)];
-        launchOCR(randomInvoice, base64);
-      };
-      reader.readAsDataURL(file);
+    } else if (fileName.endsWith('.pdf') || file.type === 'application/pdf') {
+      void analyzePdf(file);
+    } else if (file.type.startsWith('image/')) {
+      void analyzeImage(file);
     } else {
       alert("Format de fichier non supporté. Veuillez importer une image, un fichier PDF ou un fichier texte (.txt).");
     }
@@ -396,7 +372,7 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
             <div style={{ display: 'flex', gap: '8px', fontSize: '12px' }}>
               <Info size={16} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: '2px' }} />
               <div>
-                <strong>Simulation OCR :</strong> Pour ce test, si tu importes n'importe quel fichier image, photo ou PDF, l'application simulera le scan de factures réalistes de nos fournisseurs de démo (Metro, Biocoop, Grand Frais) pour te montrer comment les produits sont reliés au stock.
+                <strong>Lecture automatique (OCR) :</strong> pour une photo, cadrez la facture bien à plat, sans reflet ni flou, pour une meilleure reconnaissance. Les PDF envoyés par email sont lus directement s'ils contiennent du texte. Vérifiez toujours les lignes détectées ci-dessous avant de valider.
               </div>
             </div>
           </div>
