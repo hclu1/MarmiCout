@@ -270,17 +270,17 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
         launchFileAnalysis(file.name, text);
       };
       reader.readAsText(file);
-    } else if (file.type.startsWith('image/')) {
+    } else if (file.type.startsWith('image/') || fileName.endsWith('.pdf') || file.type === 'application/pdf') {
       const reader = new FileReader();
       reader.onload = (event) => {
-        const base64 = event.target?.result as string;
+        const base64 = fileName.endsWith('.pdf') ? null : (event.target?.result as string);
         // Choisir une facture de démonstration au hasard pour la simulation
         const randomInvoice = MOCK_INVOICES[Math.floor(Math.random() * MOCK_INVOICES.length)];
         launchOCR(randomInvoice, base64);
       };
       reader.readAsDataURL(file);
     } else {
-      alert("Format de fichier non supporté. Veuillez importer une image (facture photographiée) ou un fichier texte (.txt).");
+      alert("Format de fichier non supporté. Veuillez importer une image, un fichier PDF ou un fichier texte (.txt).");
     }
   };
 
@@ -372,7 +372,7 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
               Glissez-déposez la facture ici
             </h3>
             <p style={{ fontSize: '13px', color: 'var(--color-dark-light)', marginBottom: '20px' }}>
-              Prend en charge les photos (JPEG, PNG) ou fichiers textes de facture (.txt)
+              Prend en charge les photos (JPEG, PNG), documents PDF (.pdf) ou fichiers textes de facture (.txt)
             </p>
             <button type="button" className="btn btn-secondary">
               Parcourir mes fichiers
@@ -381,7 +381,7 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
-              accept="image/*,.txt"
+              accept="image/*,.txt,.pdf"
               style={{ display: 'none' }}
             />
           </div>
@@ -396,7 +396,7 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
             <div style={{ display: 'flex', gap: '8px', fontSize: '12px' }}>
               <Info size={16} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: '2px' }} />
               <div>
-                <strong>Simulation OCR :</strong> Pour ce test, si tu importes n'importe quel fichier image ou photo, l'application simulera le scan de factures réalistes de nos fournisseurs de démo (Metro, Biocoop, Grand Frais) pour te montrer comment les produits sont reliés au stock.
+                <strong>Simulation OCR :</strong> Pour ce test, si tu importes n'importe quel fichier image, photo ou PDF, l'application simulera le scan de factures réalistes de nos fournisseurs de démo (Metro, Biocoop, Grand Frais) pour te montrer comment les produits sont reliés au stock.
               </div>
             </div>
           </div>
