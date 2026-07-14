@@ -13,7 +13,8 @@ import {
   Camera,
   MessageSquare,
   FileText,
-  Mail
+  Mail,
+  QrCode
 } from 'lucide-react';
 import './App.css'; // Nous allons vider ce fichier pour éviter les conflits
 
@@ -30,8 +31,10 @@ import { Drawer } from './components/Drawer';
 import { Suggestions } from './components/Suggestions';
 import { QuoteRequest } from './components/QuoteRequest';
 import { Contact } from './components/Contact';
+import { ExpiredScreen } from './components/ExpiredScreen';
 
 import { dbService, getActiveTesterCode } from './services/db';
+import { markTesterCodeIssued, isTesterCodeExpired, getTesterCodeExpiryDate } from './services/testerCodes';
 import { APP_VERSION } from './version';
 
 type Tab = 'Dashboard' | 'Produits' | 'Achats' | 'Recettes' | 'Production' | 'Ventes' | 'Magasins' | 'Paramètres' | 'Suggestions' | 'Devis' | 'Contact';
@@ -41,6 +44,13 @@ function App() {
   const [tabExtraData, setTabExtraData] = useState<Record<string, unknown> | null>(null);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [isMobileActionOpen, setIsMobileActionOpen] = useState(false);
+
+  const testerCode = getActiveTesterCode();
+  const isExpired = testerCode ? isTesterCodeExpired(testerCode) : false;
+
+  useEffect(() => {
+    if (testerCode) markTesterCodeIssued(testerCode);
+  }, [testerCode]);
 
   // Mettre à jour le nombre d'alertes de stock
   const updateAlerts = () => {
@@ -75,6 +85,10 @@ function App() {
       setTabExtraData(null);
     }
   }, [tabExtraData]);
+
+  if (isExpired && testerCode) {
+    return <ExpiredScreen code={testerCode} expiryDate={getTesterCodeExpiryDate(testerCode)} />;
+  }
 
   // Liste des liens de navigation principale
   const menuItems = [
@@ -406,6 +420,18 @@ function App() {
           >
             <Mail size={18} style={{ marginRight: '12px', color: 'var(--color-primary)' }} />
             Contact
+          </button>
+
+          <button
+            className="btn btn-secondary"
+            style={{ height: '50px', justifyContent: 'flex-start', paddingLeft: '20px' }}
+            onClick={() => {
+              setIsMobileActionOpen(false);
+              handleNavigate('Contact');
+            }}
+          >
+            <QrCode size={18} style={{ marginRight: '12px', color: 'var(--color-primary)' }} />
+            Inviter un testeur (QR code)
           </button>
 
           <button

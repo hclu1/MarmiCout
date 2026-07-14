@@ -13,6 +13,7 @@
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^1.18.0",
     "mammoth": "^1.12.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Send, Mail, Copy, Check, Info, MessageCircle, MapPin, Globe } from 'lucide-react';
+import { Send, Mail, Copy, Check, Info, MessageCircle, MapPin } from 'lucide-react';
+import { InviteQRCode } from './InviteQRCode';
 
 export const Contact: React.FC = () => {
   const [name, setName] = useState('');
@@ -63,8 +64,12 @@ Généré depuis l'application MarmiCout`;
         </div>
       </div>
 
+      <div style={{ marginBottom: '24px' }}>
+        <InviteQRCode />
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', alignItems: 'start' }}>
-        
+
         {/* Colonne Gauche : Infos de contact */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
