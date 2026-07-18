@@ -99,7 +99,8 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
       'remise', 'escompte', 'capital', 'rcs', 'naf', 'ape', 'code postal', 'www.', 'http',
       'bon de commande', 'devis', 'conditions', 'merci', 'carte', 'tr eligible', 'tr éligible',
       'reste a payer', 'reste à payer', 'espèces', 'especes', 'monnaie', 'rendu', 'cb', 
-      'visa', 'mastercard', 'solde', 'ticket', 'avoir', 'net a payer', 'net à payer'
+      'visa', 'mastercard', 'solde', 'ticket', 'avoir', 'net a payer', 'net à payer',
+      'jotal', 'ir eligible', 'ir éligible', 'taux', 't.v.a', 't.v.a.', 'montant', 'article', 'articles', 'nombre d', 'nombre', 'c.b.', 'c.b', 'carte bancaire', 'promotion', 'paye', 'facture', 'date', 'heure', 'tva '
     ];
 
     // Écarte les lignes qui ne peuvent pas être une ligne d'article : en-têtes/légal,
@@ -172,22 +173,36 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
         }
 
         if (!mathFound) {
-          // Si pas de triplet magique, on prend le dernier nombre comme prix total
-          finalTotal = numbers[numbers.length - 1];
-          usedNumberStrings = [numbersMatch[numbers.length - 1]];
+          // Si pas de triplet magique, on doit vérifier qu'il y a au moins un prix formaté (*.XX)
+          let hasPriceFormat = false;
+          let bestPriceIndex = numbers.length - 1;
           
-          // Essayer de trouver la quantité avant un 'X'
+          for (let i = numbers.length - 1; i >= 0; i--) {
+            // Accepter les nombres avec exactement 2 décimales, caractéristiques des prix
+            if (/^[0-9]+[.,][0-9]{2}$/.test(numbersMatch[i])) {
+              bestPriceIndex = i;
+              hasPriceFormat = true;
+              break;
+            }
+          }
+
+          if (!hasPriceFormat) {
+            // Si strictement aucun nombre ne ressemble à un prix avec centimes, on ignore la ligne (probablement du texte OCR aléatoire)
+            return;
+          }
+
+          finalTotal = numbers[bestPriceIndex];
+          usedNumberStrings = [numbersMatch[bestPriceIndex]];
+          
+          // Essayer de trouver la quantité explicite avant un 'X'
           const matchX = line.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*[xX]\s/);
           if (matchX) {
             finalQty = parseFloat(matchX[1].replace(',', '.'));
             usedNumberStrings.push(matchX[1]);
-          } else if (numbers.length >= 2) {
-            // Si 2 nombres et pas de 'X', supposer que le premier est la quantité si c'est un entier
-            if (numbers[0] > 0 && numbers[0] < 100 && Number.isInteger(numbers[0])) {
-              finalQty = numbers[0];
-              usedNumberStrings.push(numbersMatch[0]);
-            }
           }
+          // Sans 'X' explicite et sans triplet mathématique, on assume prudemment Qty = 1
+          // car deviner à partir d'autres nombres sur la ligne produit trop de faux positifs (ex: "NOMBRE D ARTICLES 7")
+          
           finalUnitPrice = Number((finalTotal / finalQty).toFixed(4));
         }
 
