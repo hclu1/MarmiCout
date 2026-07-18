@@ -3,7 +3,7 @@ import { createWorker } from 'tesseract.js';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { parseDecimalInput } from '../utils';
-import { Camera, Upload, RefreshCw, Check, ArrowLeft, Trash2, Link as LinkIcon, Info, FileText } from 'lucide-react';
+import { Camera, Upload, RefreshCw, Check, ArrowLeft, Trash2, Link as LinkIcon, Info, FileText, Plus } from 'lucide-react';
 import { Product, Purchase, Store, Settings } from '../types';
 import { dbService } from '../services/db';
 
@@ -97,7 +97,9 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
       'page', 'facture n', 'n° facture', 'numéro de facture', 'référence', 'reference',
       'client', 'livraison', 'règlement', 'reglement', 'paiement', 'échéance', 'echeance',
       'remise', 'escompte', 'capital', 'rcs', 'naf', 'ape', 'code postal', 'www.', 'http',
-      'bon de commande', 'devis', 'conditions', 'merci'
+      'bon de commande', 'devis', 'conditions', 'merci', 'carte', 'tr eligible', 'tr éligible',
+      'reste a payer', 'reste à payer', 'espèces', 'especes', 'monnaie', 'rendu', 'cb', 
+      'visa', 'mastercard', 'solde', 'ticket', 'avoir', 'net a payer', 'net à payer'
     ];
 
     // Écarte les lignes qui ne peuvent pas être une ligne d'article : en-têtes/légal,
@@ -131,119 +133,103 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
       return 'pièce';
     };
 
-    // Format A (le plus courant sur une vraie facture fournisseur) :
-    // [Nom] [Qté] [Unité?] [Prix Unitaire] [Montant total]
-    // Exemple : "Farine T55 25 kg 1,20 30,00" → qté 25 kg à 1,20€/kg (30,00€ au total)
-    const lineItemRegexWithTotal = /^([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ0-9\s'-]{1,60}?)\s+(\d+(?:[.,]\d+)?)\s*(kg|g|l|ml|cl|pièce|pièces|sachet|u|unit|units)?\s+(\d+[.,]\d{2})\s+\d+[.,]\d{2}\s*(?:€|\$|EUR)?$/i;
 
-    // Format B (une seule valeur monétaire) : [Nom] [Qté] [Unité?] [Montant total de la ligne]
-    // Exemple : "2x Pot en verre 24.50" → le prix détecté est divisé par la quantité
-    const lineItemRegexTotalOnly = /^([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ0-9\s'-]{1,60}?)\s+(\d+(?:[.,]\d+)?)\s*(kg|g|l|ml|cl|pièce|pièces|sachet|u|unit|units)?\s+(\d+[.,]\d{2})\s*(?:€|\$|EUR)?$/i;
-
-    // Format Supermarché avec Quantité (ex: "T 2 X MILKA CHOCO PAUSE 2.85 EUR 5.70 EUR")
-    const supermarketQtyRegex = /^(?:[A-Za-z*]\s+)?(\d+(?:[.,]\d+)?)\s*[xX]\s+([a-zA-ZÀ-ÿ0-9\s'\-#&]+?)\s+(\d+[.,]\d{2})(?:\s*(?:EUR|€|E))?\s+(\d+[.,]\d{2})(?:\s*(?:EUR|€|E))?$/i;
-
-    // Format Supermarché sans Quantité (ex: "T #MPG CARPACCIO CHA 6.20 EUR")
-    const supermarketSingleRegex = /^(?:[A-Za-z*]\s+)?([a-zA-ZÀ-ÿ#][a-zA-ZÀ-ÿ0-9\s'\-#&]+?)\s+(\d+[.,]\d{2})(?:\s*(?:EUR|€|E))?$/i;
 
     lines.forEach(line => {
       if (isExcludedLine(line)) return;
 
-      let matched = false;
+      const cleanedForMath = line.replace(/[€$]|EUR/gi, '');
+      const numbersMatch = cleanedForMath.match(/\d+(?:[.,]\d+)?/g);
+      const hasMonetaryValue = /\d+[.,]\d{2}(?!\d)/.test(line);
 
-      const matchWithTotal = line.match(lineItemRegexWithTotal);
-      if (matchWithTotal) {
-        const name = matchWithTotal[1].trim();
-        const qty = parseFloat(matchWithTotal[2].replace(',', '.'));
-        const unit = normalizeUnit(matchWithTotal[3]);
-        const unitPrice = parseFloat(matchWithTotal[4].replace(',', '.'));
+      if (numbersMatch && hasMonetaryValue) {
+        const numbers = numbersMatch.map(n => parseFloat(n.replace(',', '.')));
+        let finalQty = 1;
+        let finalUnitPrice = 0;
+        let finalTotal = 0;
+        let mathFound = false;
+        let usedNumberStrings: string[] = [];
 
-        if (isPlausibleItem(name, qty, unitPrice)) {
-          items.push({ name, qty, unitPrice, unit });
-          matched = true;
-        }
-      }
-
-      if (!matched) {
-        const matchTotalOnly = line.match(lineItemRegexTotalOnly);
-        if (matchTotalOnly) {
-          const name = matchTotalOnly[1].trim();
-          const qty = parseFloat(matchTotalOnly[2].replace(',', '.'));
-          const unit = normalizeUnit(matchTotalOnly[3]);
-          const total = parseFloat(matchTotalOnly[4].replace(',', '.'));
-          const unitPrice = Number((total / qty).toFixed(4));
-
-          if (isPlausibleItem(name, qty, unitPrice)) {
-            items.push({ name, qty, unitPrice, unit });
-            matched = true;
+        // Chercher 3 nombres A, B, C tels que A * B = C (Tolérance pour les arrondis)
+        if (numbers.length >= 3) {
+          for (let i = 0; i < numbers.length - 2 && !mathFound; i++) {
+            for (let j = i + 1; j < numbers.length - 1 && !mathFound; j++) {
+              for (let k = j + 1; k < numbers.length && !mathFound; k++) {
+                const A = numbers[i];
+                const B = numbers[j];
+                const C = numbers[k];
+                
+                if (A > 0 && B > 0 && Math.abs((A * B) - C) < 0.05) {
+                  finalQty = A;
+                  finalUnitPrice = B;
+                  finalTotal = C;
+                  mathFound = true;
+                  usedNumberStrings = [numbersMatch[i], numbersMatch[j], numbersMatch[k]];
+                }
+              }
+            }
           }
         }
-      }
 
-      if (!matched) {
-        const matchSupermarketQty = line.match(supermarketQtyRegex);
-        if (matchSupermarketQty) {
-          const qty = parseFloat(matchSupermarketQty[1].replace(',', '.'));
-          const name = matchSupermarketQty[2].trim();
-          const unitPrice = parseFloat(matchSupermarketQty[3].replace(',', '.'));
-          if (isPlausibleItem(name, qty, unitPrice)) {
-            items.push({ name, qty, unitPrice, unit: 'pièce' });
-            matched = true;
+        if (!mathFound) {
+          // Si pas de triplet magique, on prend le dernier nombre comme prix total
+          finalTotal = numbers[numbers.length - 1];
+          usedNumberStrings = [numbersMatch[numbers.length - 1]];
+          
+          // Essayer de trouver la quantité avant un 'X'
+          const matchX = line.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*[xX]\s/);
+          if (matchX) {
+            finalQty = parseFloat(matchX[1].replace(',', '.'));
+            usedNumberStrings.push(matchX[1]);
+          } else if (numbers.length >= 2) {
+            // Si 2 nombres et pas de 'X', supposer que le premier est la quantité si c'est un entier
+            if (numbers[0] > 0 && numbers[0] < 100 && Number.isInteger(numbers[0])) {
+              finalQty = numbers[0];
+              usedNumberStrings.push(numbersMatch[0]);
+            }
           }
+          finalUnitPrice = Number((finalTotal / finalQty).toFixed(4));
         }
-      }
 
-      if (!matched) {
-        const matchSupermarketSingle = line.match(supermarketSingleRegex);
-        if (matchSupermarketSingle) {
-          const name = matchSupermarketSingle[1].trim();
-          const qty = 1;
-          const unitPrice = parseFloat(matchSupermarketSingle[2].replace(',', '.'));
-          if (isPlausibleItem(name, qty, unitPrice)) {
-            items.push({ name, qty, unitPrice, unit: 'pièce' });
-            matched = true;
-          }
+        // Nettoyer le nom du produit en retirant uniquement les nombres utilisés
+        let namePart = line.replace(/[€$]|EUR/gi, '');
+        usedNumberStrings.forEach(numStr => {
+          namePart = namePart.replace(numStr, '');
+        });
+        
+        // Retirer les préfixes résiduels type "T X", "T", "X", "T2 X"
+        namePart = namePart.trim().replace(/^(?:[A-Za-z*#]\s*)?[xX]?\s+/, '').trim();
+        if (namePart.toLowerCase().startsWith('x ')) {
+          namePart = namePart.substring(2).trim();
+        }
+
+        const unitMatch = line.match(/\b(kg|g|l|ml|cl|pièce|pièces|sachet|u|unit|units)\b/i);
+        const unit = normalizeUnit(unitMatch ? unitMatch[1] : undefined);
+
+        if (isPlausibleItem(namePart, finalQty, finalUnitPrice)) {
+          items.push({
+            name: namePart,
+            qty: finalQty,
+            unitPrice: finalUnitPrice,
+            unit
+          });
         }
       }
     });
 
-    // Si aucune ligne n'a été détectée avec la regex stricte, utiliser un algorithme de secours
-    // plus souple, mais qui exige tout de même un prix au format monétaire (ex: 12,50) pour
-    // ne pas confondre une date, un code ou un numéro de téléphone avec un article.
-    if (items.length === 0) {
-      lines.forEach(line => {
-        if (isExcludedLine(line)) return;
-
-        const numbers = line.match(/\d+(?:[.,]\d+)?/g);
-        const hasMonetaryValue = /\d+[.,]\d{2}(?!\d)/.test(line);
-        if (numbers && numbers.length >= 2 && hasMonetaryValue) {
-          // Supposons que le dernier nombre est le prix total et le premier est la quantité
-          const qty = parseFloat(numbers[0].replace(',', '.'));
-          const totalPaid = parseFloat(numbers[numbers.length - 1].replace(',', '.'));
-          const namePart = line.replace(/\d+(?:[.,]\d+)?/g, '').replace(/[€$]/g, '').trim();
-
-          if (isPlausibleItem(namePart, qty, totalPaid)) {
-            items.push({
-              name: namePart,
-              qty,
-              unitPrice: Number((totalPaid / qty).toFixed(4)),
-              unit: 'pièce'
-            });
-          }
-        }
-      });
-    }
-
     return { storeName, date, items };
   };
+
+  const [rawOcrText, setRawOcrText] = useState('');
 
   // Termine l'analyse d'une facture : parse le texte extrait (OCR, PDF ou .txt)
   // et tente de relier chaque ligne détectée à un produit du stock.
   const finishAnalysis = (fileName: string, text: string, imageBase64: string | null, ocrConfidence: number | null) => {
+    setRawOcrText(text);
     const parsed = parseInvoiceFromText(text);
 
     const matchedStore = stores.find(s => s.name.toLowerCase().includes(parsed.storeName.toLowerCase()));
-    setInvoiceStoreId(matchedStore ? matchedStore.id : (stores[0]?.id || ''));
+    setInvoiceStoreId(matchedStore ? matchedStore.id : '');
     setInvoiceDate(parsed.date);
     setInvoiceNotes(`Facture importée depuis ${fileName}`);
     setSourceImage(imageBase64);
@@ -385,29 +371,56 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
   };
 
   const handleValidate = () => {
-    // Vérifier si toutes les lignes ont bien un produit associé
-    const unlinkedCount = extractedItems.filter(item => !item.productId).length;
+    // Vérifier si toutes les lignes ont bien un produit associé ou "NEW"
+    const unlinkedCount = extractedItems.filter(item => item.productId === '').length;
     if (unlinkedCount > 0) {
-      if (!window.confirm(`Il y a ${unlinkedCount} ligne(s) non associée(s) à des produits de votre stock. Elles seront ignorées lors de l'enregistrement. Voulez-vous continuer ?`)) {
+      if (!window.confirm(`Il y a ${unlinkedCount} ligne(s) avec le statut "-- Ignorer --". Elles ne seront pas enregistrées. Voulez-vous continuer ?`)) {
         return;
       }
     }
 
-    const finalPurchases: Omit<Purchase, 'id'>[] = extractedItems
-      .filter(item => item.productId !== '')
-      .map(item => ({
-        date: invoiceDate,
-        productId: item.productId,
-        qty: item.qty,
-        unit: item.unit,
-        pricePaid: Number((item.qty * item.unitPrice).toFixed(2)),
-        unitPrice: item.unitPrice,
-        storeId: invoiceStoreId,
-        notes: invoiceNotes
-      }));
+    const finalPurchases: Omit<Purchase, 'id'>[] = [];
+
+    extractedItems.forEach(item => {
+      let finalProductId = item.productId;
+      
+      // Création automatique des nouveaux produits dans le stock
+      if (finalProductId === 'NEW') {
+        const newProd: Product = {
+          id: 'P_' + Date.now() + Math.floor(Math.random() * 1000),
+          barcode: '',
+          name: item.name,
+          category: settings.categories[0] || 'Autre',
+          unit: item.unit || 'pièce',
+          brand: '',
+          format: 'Unité',
+          stock: 0,
+          minStockAlert: settings.defaultMinStockAlert || 10,
+          avgPurchasePrice: item.unitPrice,
+          mainStoreId: invoiceStoreId || '',
+          notes: 'Créé via scan facture',
+          isActive: true
+        };
+        dbService.saveProduct(newProd);
+        finalProductId = newProd.id;
+      }
+
+      if (finalProductId !== '') {
+        finalPurchases.push({
+          date: invoiceDate,
+          productId: finalProductId,
+          qty: item.qty,
+          unit: item.unit,
+          pricePaid: Number((item.qty * item.unitPrice).toFixed(2)),
+          unitPrice: item.unitPrice,
+          storeId: invoiceStoreId,
+          notes: invoiceNotes
+        });
+      }
+    });
 
     if (finalPurchases.length === 0) {
-      alert("Aucun produit lié. Aucun achat n'a été enregistré.");
+      alert("Aucun produit lié ou créé. Aucun achat n'a été enregistré.");
       return;
     }
 
@@ -558,6 +571,13 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
             </button>
           </div>
 
+          <details style={{ marginBottom: '15px', fontSize: '12px', backgroundColor: 'var(--color-light)', padding: '8px', borderRadius: '4px', border: '1px solid var(--color-border)' }}>
+            <summary style={{ cursor: 'pointer', fontWeight: 'bold' }}>Voir le texte brut lu par le scanner (pour comprendre les erreurs)</summary>
+            <pre style={{ marginTop: '10px', whiteSpace: 'pre-wrap', fontFamily: 'monospace', maxHeight: '200px', overflowY: 'auto' }}>
+              {rawOcrText}
+            </pre>
+          </details>
+
           <div style={{ overflowX: 'auto', marginBottom: '20px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
               <thead>
@@ -611,19 +631,22 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <select
                             className="form-input"
-                            style={{ height: '30px', fontSize: '12px', padding: '0 4px', borderColor: item.productId ? 'var(--color-secondary)' : 'var(--color-warning)' }}
+                            style={{ height: '30px', fontSize: '12px', padding: '0 4px', borderColor: item.productId && item.productId !== 'NEW' ? 'var(--color-secondary)' : (item.productId === 'NEW' ? 'var(--color-primary)' : 'var(--color-warning)') }}
                             value={item.productId}
                             onChange={e => handleRowChange(idx, 'productId', e.target.value)}
                           >
                             <option value="">-- Ignorer (non lié au stock) --</option>
+                            <option value="NEW">➕ Créer comme nouveau produit au stock</option>
                             {products.map(p => (
                               <option key={p.id} value={p.id}>
                                 {p.name} ({p.unit})
                               </option>
                             ))}
                           </select>
-                          {item.productId ? (
+                          {item.productId && item.productId !== 'NEW' ? (
                             <span title="Lié au stock" style={{ color: 'var(--color-secondary)' }}><Check size={16} /></span>
+                          ) : item.productId === 'NEW' ? (
+                            <span title="Sera créé automatiquement" style={{ color: 'var(--color-primary)' }}><Plus size={16} /></span>
                           ) : (
                             <span title="Non géré en stock" style={{ color: 'var(--color-warning)' }}><LinkIcon size={14} /></span>
                           )}
