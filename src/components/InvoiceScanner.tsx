@@ -140,8 +140,16 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
     // Exemple : "2x Pot en verre 24.50" → le prix détecté est divisé par la quantité
     const lineItemRegexTotalOnly = /^([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ0-9\s'-]{1,60}?)\s+(\d+(?:[.,]\d+)?)\s*(kg|g|l|ml|cl|pièce|pièces|sachet|u|unit|units)?\s+(\d+[.,]\d{2})\s*(?:€|\$|EUR)?$/i;
 
+    // Format Supermarché avec Quantité (ex: "T 2 X MILKA CHOCO PAUSE 2.85 EUR 5.70 EUR")
+    const supermarketQtyRegex = /^(?:[A-Za-z*]\s+)?(\d+(?:[.,]\d+)?)\s*[xX]\s+([a-zA-ZÀ-ÿ0-9\s'\-#&]+?)\s+(\d+[.,]\d{2})(?:\s*(?:EUR|€|E))?\s+(\d+[.,]\d{2})(?:\s*(?:EUR|€|E))?$/i;
+
+    // Format Supermarché sans Quantité (ex: "T #MPG CARPACCIO CHA 6.20 EUR")
+    const supermarketSingleRegex = /^(?:[A-Za-z*]\s+)?([a-zA-ZÀ-ÿ#][a-zA-ZÀ-ÿ0-9\s'\-#&]+?)\s+(\d+[.,]\d{2})(?:\s*(?:EUR|€|E))?$/i;
+
     lines.forEach(line => {
       if (isExcludedLine(line)) return;
+
+      let matched = false;
 
       const matchWithTotal = line.match(lineItemRegexWithTotal);
       if (matchWithTotal) {
@@ -152,20 +160,49 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
 
         if (isPlausibleItem(name, qty, unitPrice)) {
           items.push({ name, qty, unitPrice, unit });
-          return;
+          matched = true;
         }
       }
 
-      const matchTotalOnly = line.match(lineItemRegexTotalOnly);
-      if (matchTotalOnly) {
-        const name = matchTotalOnly[1].trim();
-        const qty = parseFloat(matchTotalOnly[2].replace(',', '.'));
-        const unit = normalizeUnit(matchTotalOnly[3]);
-        const total = parseFloat(matchTotalOnly[4].replace(',', '.'));
-        const unitPrice = Number((total / qty).toFixed(4));
+      if (!matched) {
+        const matchTotalOnly = line.match(lineItemRegexTotalOnly);
+        if (matchTotalOnly) {
+          const name = matchTotalOnly[1].trim();
+          const qty = parseFloat(matchTotalOnly[2].replace(',', '.'));
+          const unit = normalizeUnit(matchTotalOnly[3]);
+          const total = parseFloat(matchTotalOnly[4].replace(',', '.'));
+          const unitPrice = Number((total / qty).toFixed(4));
 
-        if (isPlausibleItem(name, qty, unitPrice)) {
-          items.push({ name, qty, unitPrice, unit });
+          if (isPlausibleItem(name, qty, unitPrice)) {
+            items.push({ name, qty, unitPrice, unit });
+            matched = true;
+          }
+        }
+      }
+
+      if (!matched) {
+        const matchSupermarketQty = line.match(supermarketQtyRegex);
+        if (matchSupermarketQty) {
+          const qty = parseFloat(matchSupermarketQty[1].replace(',', '.'));
+          const name = matchSupermarketQty[2].trim();
+          const unitPrice = parseFloat(matchSupermarketQty[3].replace(',', '.'));
+          if (isPlausibleItem(name, qty, unitPrice)) {
+            items.push({ name, qty, unitPrice, unit: 'pièce' });
+            matched = true;
+          }
+        }
+      }
+
+      if (!matched) {
+        const matchSupermarketSingle = line.match(supermarketSingleRegex);
+        if (matchSupermarketSingle) {
+          const name = matchSupermarketSingle[1].trim();
+          const qty = 1;
+          const unitPrice = parseFloat(matchSupermarketSingle[2].replace(',', '.'));
+          if (isPlausibleItem(name, qty, unitPrice)) {
+            items.push({ name, qty, unitPrice, unit: 'pièce' });
+            matched = true;
+          }
         }
       }
     });
