@@ -22,6 +22,9 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
   const [sourceImage, setSourceImage] = useState<string | null>(null);
   const [confidence, setConfidence] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Bulle d'aide
+  const [showTip, setShowTip] = useState(() => localStorage.getItem('marmicout_hide_scanner_tip') !== 'true');
 
   // Informations globales de la facture extraite
   const [invoiceStoreId, setInvoiceStoreId] = useState('');
@@ -136,98 +139,127 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
 
 
 
+    // Format A (Factures fournisseurs type Metro) :
+    // Exemple : "Farine T55 25 kg 1,20 30,00"
+    const lineItemRegexWithTotal = /^([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ0-9\s'-]{1,60}?)\s+(\d+(?:[.,]\d+)?)\s*(kg|g|l|ml|cl|pièce|pièces|sachet|u|unit|units)?\s+(\d+[.,]\d{2})\s+\d+[.,]\d{2}\s*(?:€|\$|EUR)?$/i;
+
+    // Format B (Une seule valeur monétaire) : 
+    // Exemple : "2x Pot en verre 24.50"
+    const lineItemRegexTotalOnly = /^([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ0-9\s'-]{1,60}?)\s+(\d+(?:[.,]\d+)?)\s*(kg|g|l|ml|cl|pièce|pièces|sachet|u|unit|units)?\s+(\d+[.,]\d{2})\s*(?:€|\$|EUR)?$/i;
+
+    // Format Supermarché avec Quantité (ex: "T 2 X MILKA" ou "T2 X BRASSE SKYR")
+    // Le \s* au lieu de \s+ après le préfixe permet de matcher "T2" collé !
+    const supermarketQtyRegex = /^(?:[A-Za-z*0-9#]\s*)?(\d+(?:[.,]\d+)?)\s*[xX]\s+([a-zA-ZÀ-ÿ0-9\s'\-#&/%.,*]+?)\s+(\d+[.,]\d{2})(?:\s*(?:EUR|€|E))?\s+(\d+[.,]\d{2})(?:\s*(?:EUR|€|E))?\s*[^0-9]*$/i;
+
     lines.forEach(line => {
       if (isExcludedLine(line)) return;
 
-      const cleanedForMath = line.replace(/[€$]|EUR/gi, '');
-      const numbersMatch = cleanedForMath.match(/\d+(?:[.,]\d+)?/g);
-      const hasMonetaryValue = /\d+[.,]\d{2}(?!\d)/.test(line);
+      let matched = false;
 
-      if (numbersMatch && hasMonetaryValue) {
-        const numbers = numbersMatch.map(n => parseFloat(n.replace(',', '.')));
-        let finalQty = 1;
-        let finalUnitPrice = 0;
-        let finalTotal = 0;
-        let mathFound = false;
-        let usedNumberStrings: string[] = [];
+      const matchWithTotal = line.match(lineItemRegexWithTotal);
+      if (matchWithTotal) {
+        const name = matchWithTotal[1].trim();
+        const qty = parseFloat(matchWithTotal[2].replace(',', '.'));
+        const unit = normalizeUnit(matchWithTotal[3]);
+        const unitPrice = parseFloat(matchWithTotal[4].replace(',', '.'));
 
-        // Chercher 3 nombres A, B, C tels que A * B = C (Tolérance pour les arrondis)
-        if (numbers.length >= 3) {
-          for (let i = 0; i < numbers.length - 2 && !mathFound; i++) {
-            for (let j = i + 1; j < numbers.length - 1 && !mathFound; j++) {
-              for (let k = j + 1; k < numbers.length && !mathFound; k++) {
-                const A = numbers[i];
-                const B = numbers[j];
-                const C = numbers[k];
-                
-                if (A > 0 && B > 0 && Math.abs((A * B) - C) < 0.05) {
-                  finalQty = A;
-                  finalUnitPrice = B;
-                  finalTotal = C;
-                  mathFound = true;
-                  usedNumberStrings = [numbersMatch[i], numbersMatch[j], numbersMatch[k]];
+        if (isPlausibleItem(name, qty, unitPrice)) {
+          items.push({ name, qty, unitPrice, unit });
+          matched = true;
+        }
+      }
+
+      if (!matched) {
+        const matchTotalOnly = line.match(lineItemRegexTotalOnly);
+        if (matchTotalOnly) {
+          const name = matchTotalOnly[1].trim();
+          const qty = parseFloat(matchTotalOnly[2].replace(',', '.'));
+          const unit = normalizeUnit(matchTotalOnly[3]);
+          const total = parseFloat(matchTotalOnly[4].replace(',', '.'));
+          const unitPrice = Number((total / qty).toFixed(4));
+
+          if (isPlausibleItem(name, qty, unitPrice)) {
+            items.push({ name, qty, unitPrice, unit });
+            matched = true;
+          }
+        }
+      }
+
+      if (!matched) {
+        const matchSupermarketQty = line.match(supermarketQtyRegex);
+        if (matchSupermarketQty) {
+          const qty = parseFloat(matchSupermarketQty[1].replace(',', '.'));
+          const name = matchSupermarketQty[2].trim();
+          const unitPrice = parseFloat(matchSupermarketQty[3].replace(',', '.'));
+          if (isPlausibleItem(name, qty, unitPrice)) {
+            items.push({ name, qty, unitPrice, unit: 'pièce' });
+            matched = true;
+          }
+        }
+      }
+
+      if (!matched) {
+        // Algorithme de secours Mathématique (si les regex échouent)
+        const cleanedForMath = line.replace(/[€$]|EUR/gi, '');
+        const numbersMatch = cleanedForMath.match(/\d+(?:[.,]\d+)?/g);
+        const hasMonetaryValue = /\d+[.,]\d{2}(?!\d)/.test(line);
+
+        if (numbersMatch && hasMonetaryValue) {
+          const numbers = numbersMatch.map(n => parseFloat(n.replace(',', '.')));
+          let finalQty = 1;
+          let finalUnitPrice = 0;
+          let finalTotal = 0;
+          let mathFound = false;
+          let usedNumberStrings: string[] = [];
+
+          if (numbers.length >= 3) {
+            for (let i = 0; i < numbers.length - 2 && !mathFound; i++) {
+              for (let j = i + 1; j < numbers.length - 1 && !mathFound; j++) {
+                for (let k = j + 1; k < numbers.length && !mathFound; k++) {
+                  const A = numbers[i];
+                  const B = numbers[j];
+                  const C = numbers[k];
+                  
+                  if (A > 0 && B > 0 && Math.abs((A * B) - C) < 0.05) {
+                    finalQty = A;
+                    finalUnitPrice = B;
+                    finalTotal = C;
+                    mathFound = true;
+                    usedNumberStrings = [numbersMatch[i], numbersMatch[j], numbersMatch[k]];
+                  }
                 }
               }
             }
           }
-        }
 
-        if (!mathFound) {
-          // Si pas de triplet magique, on doit vérifier qu'il y a au moins un prix formaté (*.XX)
-          let hasPriceFormat = false;
-          let bestPriceIndex = numbers.length - 1;
-          
-          for (let i = numbers.length - 1; i >= 0; i--) {
-            // Accepter les nombres avec exactement 2 décimales, caractéristiques des prix
-            if (/^[0-9]+[.,][0-9]{2}$/.test(numbersMatch[i])) {
-              bestPriceIndex = i;
-              hasPriceFormat = true;
-              break;
+          if (!mathFound) {
+            finalTotal = numbers[numbers.length - 1];
+            usedNumberStrings = [numbersMatch[numbers.length - 1]];
+            
+            const matchX = line.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*[xX]\s/);
+            if (matchX) {
+              finalQty = parseFloat(matchX[1].replace(',', '.'));
+              usedNumberStrings.push(matchX[1]);
             }
+            finalUnitPrice = Number((finalTotal / finalQty).toFixed(4));
           }
 
-          if (!hasPriceFormat) {
-            // Si strictement aucun nombre ne ressemble à un prix avec centimes, on ignore la ligne (probablement du texte OCR aléatoire)
-            return;
-          }
-
-          finalTotal = numbers[bestPriceIndex];
-          usedNumberStrings = [numbersMatch[bestPriceIndex]];
-          
-          // Essayer de trouver la quantité explicite avant un 'X'
-          const matchX = line.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*[xX]\s/);
-          if (matchX) {
-            finalQty = parseFloat(matchX[1].replace(',', '.'));
-            usedNumberStrings.push(matchX[1]);
-          }
-          // Sans 'X' explicite et sans triplet mathématique, on assume prudemment Qty = 1
-          // car deviner à partir d'autres nombres sur la ligne produit trop de faux positifs (ex: "NOMBRE D ARTICLES 7")
-          
-          finalUnitPrice = Number((finalTotal / finalQty).toFixed(4));
-        }
-
-        // Nettoyer le nom du produit en retirant uniquement les nombres utilisés
-        let namePart = line.replace(/[€$]|EUR/gi, '');
-        usedNumberStrings.forEach(numStr => {
-          namePart = namePart.replace(numStr, '');
-        });
-        
-        // Retirer les préfixes résiduels type "T X", "T", "X", "T2 X"
-        namePart = namePart.trim().replace(/^(?:[A-Za-z*#]\s*)?[xX]?\s+/, '').trim();
-        if (namePart.toLowerCase().startsWith('x ')) {
-          namePart = namePart.substring(2).trim();
-        }
-
-        const unitMatch = line.match(/\b(kg|g|l|ml|cl|pièce|pièces|sachet|u|unit|units)\b/i);
-        const unit = normalizeUnit(unitMatch ? unitMatch[1] : undefined);
-
-        if (isPlausibleItem(namePart, finalQty, finalUnitPrice)) {
-          items.push({
-            name: namePart,
-            qty: finalQty,
-            unitPrice: finalUnitPrice,
-            unit
+          let namePart = line.replace(/[€$]|EUR/gi, '');
+          usedNumberStrings.forEach(numStr => {
+            namePart = namePart.replace(numStr, '');
           });
+          
+          namePart = namePart.trim().replace(/^(?:[A-Za-z*#]\s*)?[xX]?\s+/, '').trim();
+          if (namePart.toLowerCase().startsWith('x ')) {
+            namePart = namePart.substring(2).trim();
+          }
+
+          const unitMatch = line.match(/\b(kg|g|l|ml|cl|pièce|pièces|sachet|u|unit|units)\b/i);
+          const unit = normalizeUnit(unitMatch ? unitMatch[1] : undefined);
+
+          if (isPlausibleItem(namePart, finalQty, finalUnitPrice)) {
+            items.push({ name: namePart, qty: finalQty, unitPrice: finalUnitPrice, unit });
+          }
         }
       }
     });
@@ -494,6 +526,29 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
               </div>
             </div>
           </div>
+
+          {showTip && (
+            <div className="card" style={{ marginTop: '16px', backgroundColor: '#fff3cd', borderColor: '#ffe69c', textAlign: 'left' }}>
+              <div style={{ display: 'flex', gap: '8px', fontSize: '13px', color: '#664d03' }}>
+                <Info size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  <strong style={{ display: 'block', marginBottom: '8px' }}>💡 Astuce pour une lecture parfaite (Téléphone)</strong>
+                  Pour éviter les erreurs de texte, utilisez l'application <strong>Notes</strong> (iPhone) ou <strong>Google Drive</strong> (Android) pour "Scanner le document" en PDF noir et blanc bien net. 
+                  Ensuite, cliquez ici sur "Parcourir mes fichiers" et choisissez votre PDF !
+                  
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '12px', cursor: 'pointer', fontWeight: 'bold' }}>
+                    <input type="checkbox" onChange={(e) => {
+                      if (e.target.checked) {
+                        setShowTip(false);
+                        localStorage.setItem('marmicout_hide_scanner_tip', 'true');
+                      }
+                    }} />
+                    J'ai compris, ne plus afficher ce message
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
