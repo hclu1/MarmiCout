@@ -265,14 +265,18 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
               usedNumberStrings.push(matchX[1]);
             } else if (numbersMatch.length > 1) {
               // Cas de secours extrême : L'OCR a fusionné la quantité et un autre symbole (ex: "22 00 4,70")
-              // On teste si le premier nombre commence par une quantité plausible
               const firstNumStr = numbersMatch[0];
-              for (let q = 20; q >= 1; q--) {
-                if (firstNumStr.startsWith(q.toString()) && firstNumStr.length > q.toString().length) {
-                  finalQty = q;
-                  usedNumberStrings.push(firstNumStr);
-                  console.log(`  -> 💡 Déduction de quantité OCR fusionnée: ${q} à partir de "${firstNumStr}"`);
-                  break;
+              // Sécurité : on évite de casser les poids (ex: 250G lu comme 2506)
+              const isWeight = /^(100|125|150|200|250|300|400|500|600|700|750|800)/.test(firstNumStr);
+              
+              if (!isWeight) {
+                for (let q = 20; q >= 2; q--) { // On ne déduit pas "1" pour éviter les faux positifs (1 est déjà la valeur par défaut)
+                  if (firstNumStr.startsWith(q.toString()) && firstNumStr.length > q.toString().length) {
+                    finalQty = q;
+                    usedNumberStrings.push(firstNumStr);
+                    console.log(`  -> 💡 Déduction de quantité OCR fusionnée: ${q} à partir de "${firstNumStr}"`);
+                    break;
+                  }
                 }
               }
             }
