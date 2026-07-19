@@ -255,6 +255,18 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
             if (matchX) {
               finalQty = parseFloat(matchX[1].replace(',', '.'));
               usedNumberStrings.push(matchX[1]);
+            } else if (numbersMatch.length > 1) {
+              // Cas de secours extrême : L'OCR a fusionné la quantité et un autre symbole (ex: "22 00 4,70")
+              // On teste si le premier nombre commence par une quantité plausible
+              const firstNumStr = numbersMatch[0];
+              for (let q = 20; q >= 1; q--) {
+                if (firstNumStr.startsWith(q.toString()) && firstNumStr.length > q.toString().length) {
+                  finalQty = q;
+                  usedNumberStrings.push(firstNumStr);
+                  console.log(`  -> 💡 Déduction de quantité OCR fusionnée: ${q} à partir de "${firstNumStr}"`);
+                  break;
+                }
+              }
             }
             finalUnitPrice = Number((finalTotal / finalQty).toFixed(4));
           }
@@ -338,30 +350,92 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
     setStep('validating');
   };
 
-  // Lecture réelle d'une photo de facture par OCR (reconnaissance de texte locale, dans le navigateur)
+  // Prétraitement de l'image (Canvas) pour améliorer drastiquement l'OCR de Tesseract
+  // - Zoom x2
+  // - Passage en noir et blanc pur (Thresholding) pour faire ressortir les * et les virgules
+  const preprocessImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(img.src);
+
+        // Agrandissement x2
+        const scale = 2;
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+
+        // On dessine l'image agrandie
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // Récupération des pixels
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+
+        // Seuil de Noir et Blanc (Binarization)
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          // Luminance
+          let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+          
+          // Contraste élevé
+          const contrast = 1.5; 
+          gray = (gray - 128) * contrast + 128;
+          
+          // Seuillage N&B (Noir pur ou Blanc pur)
+          gray = gray < 140 ? 0 : 255;
+
+          data[i] = gray;
+          data[i + 1] = gray;
+          data[i + 2] = gray;
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = reject;
+      
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Lecture réelle d'une photo de facture par OCR
   const analyzeImage = async (file: File) => {
     setStep('analyzing');
     setConfidence(0);
 
-    const base64: string = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
-
     try {
+      // Étape 1 : Prétraitement de l'image
+      const processedBase64 = await preprocessImage(file);
+
+      // Conserver l'image source pour l'affichage (base64 compressé pour éviter de saturer la RAM)
+      const reader = new FileReader();
+      reader.onload = (e) => setSourceImage(e.target?.result as string);
+      reader.readAsDataURL(file);
+
+      // Étape 2 : Lancement de l'OCR
       const worker = await createWorker('fra', undefined, {
         logger: m => {
           if (typeof m.progress === 'number') setConfidence(Math.round(m.progress * 100));
         }
       });
-      const { data } = await worker.recognize(base64);
+      const { data } = await worker.recognize(processedBase64);
       await worker.terminate();
-      finishAnalysis(file.name, data.text, base64, data.confidence);
+      
+      finishAnalysis(file.name, data.text, processedBase64, data.confidence);
     } catch (err) {
       console.error('Erreur OCR', err);
-      alert("La lecture automatique (OCR) de la photo a échoué. Réessayez avec une photo plus nette, bien cadrée, à plat et sans reflet.");
+      alert("La lecture automatique (OCR) de la photo a échoué. Réessayez avec une photo plus nette.");
       setStep('idle');
     }
   };
