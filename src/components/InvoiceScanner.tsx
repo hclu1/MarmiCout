@@ -148,10 +148,10 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
     const lineItemRegexTotalOnly = /^([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ0-9\s'-]{1,60}?)\s+(\d+(?:[.,]\d+)?)\s*(kg|g|l|ml|cl|pièce|pièces|sachet|u|unit|units)?\s+(\d+[.,]\d{2})\s*(?:€|\$|EUR)?$/i;
 
     // Format Supermarché avec Quantité (ex: "T 2 X MILKA" ou "T2 X BRASSE SKYR")
-    // Le \s* au lieu de \s+ après le préfixe permet de matcher "T2" collé !
-    const supermarketQtyRegex = /^(?:[A-Za-z*0-9#]\s*)?(\d+(?:[.,]\d+)?)\s*[xX]\s+([a-zA-ZÀ-ÿ0-9\s'\-#&/%.,*]+?)\s+(\d+[.,]\d{2})(?:\s*(?:EUR|€|E))?\s+(\d+[.,]\d{2})(?:\s*(?:EUR|€|E))?\s*[^0-9]*$/i;
+    // On accepte 'x', 'X' ou '*' comme multiplicateur
+    const supermarketQtyRegex = /^(?:[A-Za-z*0-9#]\s*)?(\d+(?:[.,]\d+)?)\s*[xX*]\s+([a-zA-ZÀ-ÿ0-9\s'\-#&/%.,*]+?)\s+(\d+[.,]\d{2})(?:\s*(?:EUR|€|E))?\s+(\d+[.,]\d{2})(?:\s*(?:EUR|€|E))?\s*[^0-9]*$/i;
 
-    lines.forEach(line => {
+    lines.forEach((line, index) => {
       if (isExcludedLine(line)) return;
 
       let matched = false;
@@ -236,7 +236,7 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
             finalTotal = numbers[numbers.length - 1];
             usedNumberStrings = [numbersMatch[numbers.length - 1]];
             
-            const matchX = line.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*[xX]\s/);
+            const matchX = line.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*[xX*]\s/);
             if (matchX) {
               finalQty = parseFloat(matchX[1].replace(',', '.'));
               usedNumberStrings.push(matchX[1]);
@@ -249,13 +249,22 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
             namePart = namePart.replace(numStr, '');
           });
           
-          namePart = namePart.trim().replace(/^(?:[A-Za-z*#]\s*)?[xX]?\s+/, '').trim();
+          namePart = namePart.trim().replace(/^(?:[A-Za-z*#]\s*)?[xX*]?\s+/, '').trim();
           if (namePart.toLowerCase().startsWith('x ')) {
             namePart = namePart.substring(2).trim();
           }
 
           const unitMatch = line.match(/\b(kg|g|l|ml|cl|pièce|pièces|sachet|u|unit|units)\b/i);
           const unit = normalizeUnit(unitMatch ? unitMatch[1] : undefined);
+
+          // Si le nom extrait ne contient pas de lettres (ex: la ligne était juste "2 * 2.35   4.70"),
+          // le nom du produit est probablement sur la ligne précédente du ticket.
+          if (!/[a-zA-ZÀ-ÿ]{2,}/.test(namePart) && index > 0) {
+            const previousLine = lines[index - 1].replace(/[€$]|EUR/gi, '').trim();
+            if (/[a-zA-ZÀ-ÿ]{2,}/.test(previousLine) && !/\d+[.,]\d{2}/.test(previousLine)) {
+              namePart = previousLine;
+            }
+          }
 
           if (isPlausibleItem(namePart, finalQty, finalUnitPrice)) {
             items.push({ name: namePart, qty: finalQty, unitPrice: finalUnitPrice, unit });

@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flyer MarmiCout</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root {
+      --primary: #e65a5a;
+      --primary-dark: #c94a4a;
+      --secondary: #233142;
+      --accent: #1fa89e;
+      --light: #f7f8fa;
+      --white: #ffffff;
+      --text: #25313d;
+      --muted: #66717d;
+      --border: #dfe5ea;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: #dfe3e8;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .flyer {
+      width: 148mm;
+      height: 210mm;
+      background: var(--white);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
+    }
+
+    .shape-top {
+      position: absolute;
+      top: -45mm;
+      right: -20mm;
+      width: 95mm;
+      height: 95mm;
+      background: linear-gradient(135deg, rgba(230, 90, 90, 0.12), rgba(31, 168, 158, 0.08));
+      border-radius: 50%;
+      z-index: 0;
+    }
+
+    .shape-bottom {
+      position: absolute;
+      bottom: -30mm;
+      left: -20mm;
+      width: 70mm;
+      height: 70mm;
+      background: rgba(31, 168, 158, 0.07);
+      border-radius: 50%;
+      z-index: 0;
+    }
+
+    .header,
+    .content,
+    .footer {
+      position: relative;
+      z-index: 1;
+    }
+
+    .header {
+      padding: 22px 22px 18px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      color: var(--white);
+    }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .logo-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 19px;
+      flex-shrink: 0;
+    }
+
+    .brand-text h1 {
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: 0.3px;
+    }
+
+    .brand-text p {
+      font-size: 12px;
+      font-weight: 500;
+      opacity: 0.95;
+      margin-top: 4px;
+    }
+
+    .headline {
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 10px;
+      max-width: 90%;
+    }
+
+    .subheadline {
+      font-size: 14px;
+      line-height: 1.45;
+      max-width: 92%;
+      color: rgba(255, 255, 255, 0.96);
+    }
+
+    .content {
+      flex: 1;
+      padding: 18px 22px 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .intro-box {
+      background: var(--light);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+    }
+
+    .intro-box p {
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.45;
+      text-align: center;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .feature {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 12px 12px 12px 10px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--white);
+    }
+
+    .feature-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 16px;
+    }
+
+    .feature:nth-child(1) .feature-icon {
+      color: var(--primary);
+      background: rgba(230, 90, 90, 0.12);
+    }
+
+    .feature:nth-child(2) .feature-icon {
+      color: var(--accent);
+      background: rgba(31, 168, 158, 0.12);
+    }
+
+    .feature:nth-child(3) .feature-icon {
+      color: var(--secondary);
+      background: rgba(35, 49, 66, 0.08);
+    }
+
+    .feature-text h3 {
+      font-size: 15px;
+      line-height: 1.2;
+      color: var(--secondary);
+      margin-bottom: 4px;
+      font-weight: 700;
+    }
+
+    .feature-text p {
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .proof-box {
+      border-left: 4px solid var(--accent);
+      background: #f7fcfb;
+      padding: 10px 12px;
+      border-radius: 0 12px 12px 0;
+      margin-bottom: 16px;
+    }
+
+    .proof-box p {
+      font-size: 12px;
+      color: var(--text);
+      line-height: 1.45;
+      font-weight: 500;
+    }
+
+    .cta-section {
+      margin-top: auto;
+      background: linear-gradient(180deg, #fff7f7 0%, #fff 100%);
+      border: 1px solid #f1d2d2;
+      border-radius: 18px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .cta-text {
+      flex: 1;
+    }
+
+    .cta-badge {
+      display: inline-block;
+      background: rgba(230, 90, 90, 0.12);
+      color: var(--primary);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .cta-text h2 {
+      color: var(--secondary);
+      font-size: 19px;
+      line-height: 1.15;
+      margin-bottom: 7px;
+      font-weight: 800;
+    }
+
+    .cta-text p {
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--text);
+    }
+
+    .cta-text .microcopy {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .qr-block {
+      width: 96px;
+      flex-shrink: 0;
+      text-align: center;
+    }
+
+    .qr-container {
+      width: 96px;
+      height: 96px;
+      background: var(--white);
+      padding: 6px;
+      border-radius: 12px;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+      border: 1px solid var(--border);
+    }
+
+    .qr-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .qr-label {
+      margin-top: 7px;
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--primary);
+      letter-spacing: 0.5px;
+    }
+
+    .footer {
+      margin-top: 14px;
+      background: var(--secondary);
+      color: var(--white);
+      padding: 12px 16px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    .footer span {
+      display: block;
+      opacity: 0.96;
+    }
+
+    .footer i {
+      margin-right: 6px;
+    }
+
+    @media print {
+      body {
+        background: white;
+        padding: 0;
+      }
+
+      .flyer {
+        width: 100%;
+        height: 100%;
+        box-shadow: none;
+      }
+
+      @page {
+        margin: 0;
+        size: A5 portrait;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="flyer">
+    <div class="shape-top"></div>
+    <div class="shape-bottom"></div>
+
+    <div class="header">
+      <div class="brand-row">
+        <div class="logo-icon">
+          <i class="fa-solid fa-utensils"></i>
+        </div>
+        <div class="brand-text">
+          <h1>MarmiCout</h1>
+          <p>Pour traiteurs et producteurs de plats cuisinés</p>
+        </div>
+      </div>
+
+      <div class="headline">
+        Maîtrisez vos coûts. Protégez vos marges. Gagnez du temps.
+      </div>
+
+      <div class="subheadline">
+        Le logiciel pensé pour piloter plus simplement vos recettes, achats, factures et rentabilité.
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="intro-box">
+        <p>
+          Remplacez les tableaux compliqués et les saisies répétitives par un outil plus rapide, plus clair et plus utile au quotidien.
+        </p>
+      </div>
+
+      <div class="features">
+        <div class="feature">
+          <div class="feature-icon">
+            <i class="fa-solid fa-chart-line"></i>
+          </div>
+          <div class="feature-text">
+            <h3>Suivez votre vraie rentabilité</h3>
+            <p>Calculez vos coûts de revient et visualisez la marge réelle de chaque recette plus facilement.</p>
+          </div>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">
+            <i class="fa-solid fa-file-invoice"></i>
+          </div>
+          <div class="feature-text">
+            <h3>Gagnez du temps sur les saisies</h3>
+            <p>Importez plus vite vos recettes, produits et factures pour limiter les erreurs et les tâches manuelles.</p>
+          </div>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">
+            <i class="fa-solid fa-boxes-stacked"></i>
+          </div>
+          <div class="feature-text">
+            <h3>Centralisez votre gestion</h3>
+            <p>Achats, fournisseurs, stock et production réunis au même endroit pour un pilotage plus simple.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="proof-box">
+        <p>
+          Idéal pour les professionnels qui veulent mieux décider, mieux acheter et mieux vendre sans dépendre d’Excel.
+        </p>
+      </div>
+
+      <div class="cta-section">
+        <div class="cta-text">
+          <div class="cta-badge">Essai 14 jours</div>
+          <h2>Scannez pour découvrir MarmiCout</h2>
+          <p>
+            Accédez à une démo rapide ou commencez votre essai gratuit pour voir comment simplifier votre gestion.
+          </p>
+          <p class="microcopy">
+            Sans engagement
+          </p>
+        </div>
+
+        <div class="qr-block">
+          <div class="qr-container">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https%3A%2F%2Fmarmi-cout.vercel.app%2F%3Fcode%3Dhe" alt="QR code vers MarmiCout">
+          </div>
+          <div class="qr-label">SCANNEZ ICI</div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <span><i class="fa-solid fa-globe"></i> marmi-cout.vercel.app</span>
+        <span><i class="fa-solid fa-envelope"></i> contact@marmicout.fr</span>
+        <span><i class="fa-brands fa-instagram"></i> @marmicout_app</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
