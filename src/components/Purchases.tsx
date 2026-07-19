@@ -347,6 +347,7 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
       <Drawer
         title="Nouvel Achat"
         isOpen={isFormOpen}
+        width="1200px"
         onClose={() => {
           setIsFormOpen(false);
           setIsScannerOpen(false);
