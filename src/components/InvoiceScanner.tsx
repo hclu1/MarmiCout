@@ -202,7 +202,7 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
         // Algorithme de secours Mathématique (si les regex échouent)
         const cleanedForMath = line.replace(/[€$]|EUR/gi, '');
         const numbersMatch = cleanedForMath.match(/\d+(?:[.,]\d+)?/g);
-        const hasMonetaryValue = /\d+[.,]\d{2}(?!\d)/.test(line);
+        const hasMonetaryValue = /\d+[.,]\d{1,2}(?!\d)/.test(line);
 
         if (numbersMatch && hasMonetaryValue) {
           const numbers = numbersMatch.map(n => parseFloat(n.replace(',', '.')));
@@ -257,12 +257,18 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
           const unitMatch = line.match(/\b(kg|g|l|ml|cl|pièce|pièces|sachet|u|unit|units)\b/i);
           const unit = normalizeUnit(unitMatch ? unitMatch[1] : undefined);
 
-          // Si le nom extrait ne contient pas de lettres (ex: la ligne était juste "2 * 2.35   4.70"),
-          // le nom du produit est probablement sur la ligne précédente du ticket.
-          if (!/[a-zA-ZÀ-ÿ]{2,}/.test(namePart) && index > 0) {
-            const previousLine = lines[index - 1].replace(/[€$]|EUR/gi, '').trim();
-            if (/[a-zA-ZÀ-ÿ]{2,}/.test(previousLine) && !/\d+[.,]\d{2}/.test(previousLine)) {
-              namePart = previousLine;
+          // Si le nom extrait ne contient pas de lettres, on cherche sur la ligne du haut
+          if (!/[a-zA-ZÀ-ÿ]{2,}/.test(namePart)) {
+            let foundName = false;
+            if (index > 0) {
+              const previousLine = lines[index - 1].replace(/[€$]|EUR/gi, '').trim();
+              if (/[a-zA-ZÀ-ÿ]{2,}/.test(previousLine) && !/\d+[.,]\d{1,2}/.test(previousLine)) {
+                namePart = previousLine;
+                foundName = true;
+              }
+            }
+            if (!foundName) {
+              namePart = 'Produit inconnu (à renommer)';
             }
           }
 
