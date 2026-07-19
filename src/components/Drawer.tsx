@@ -28,8 +28,7 @@ export const Drawer: React.FC<DrawerProps> = ({ title, isOpen, onClose, children
 
   // Calcul dynamique du style en fonction des props
   const customStyle: React.CSSProperties = {
-    ...(zIndex ? { zIndex } : {}),
-    ...(width ? { '--drawer-width': width } as React.CSSProperties : {})
+    ...(zIndex ? { zIndex } : {})
   };
 
   return (
@@ -43,7 +42,7 @@ export const Drawer: React.FC<DrawerProps> = ({ title, isOpen, onClose, children
       
       {/* Panneau coulissant */}
       <div 
-        className={`drawer ${isOpen ? 'open' : ''}`} 
+        className={`drawer ${isOpen ? 'open' : ''} ${width ? 'drawer-wide' : ''}`} 
         style={Object.keys(customStyle).length > 0 ? customStyle : undefined}
       >
         <div className="drawer-header">
