@@ -27,10 +27,10 @@ export const Drawer: React.FC<DrawerProps> = ({ title, isOpen, onClose, children
   if (!isOpen) return null;
 
   // Calcul dynamique du style en fonction des props
-  const customStyle: React.CSSProperties = {};
-  if (zIndex) customStyle.zIndex = zIndex;
-  // On applique la largeur personnalisée uniquement si on est pas sur mobile (largeur par défaut gérée en CSS)
-  if (width && window.innerWidth >= 769) customStyle.width = width;
+  const customStyle: React.CSSProperties = {
+    ...(zIndex ? { zIndex } : {}),
+    ...(width ? { '--drawer-width': width } as React.CSSProperties : {})
+  };
 
   return (
     <>
