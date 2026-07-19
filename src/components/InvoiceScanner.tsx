@@ -215,9 +215,11 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
 
       if (!matched) {
         // Algorithme de secours Mathématique (si les regex échouent)
-        const cleanedForMath = line.replace(/[€$]|EUR/gi, '');
+        // Astuce : si l'OCR a perdu la virgule des centimes (ex: "3 99"), on la recrée
+        const patchedLine = line.replace(/(\d+)\s(\d{2})(?!\d)/g, '$1.$2');
+        const cleanedForMath = patchedLine.replace(/[€$]|EUR/gi, '');
         const numbersMatch = cleanedForMath.match(/\d+(?:[.,]\d+)?/g);
-        const hasMonetaryValue = /\d+[.,]\d{1,2}(?!\d)/.test(line);
+        const hasMonetaryValue = /\d+[.,]\d{1,2}(?!\d)/.test(patchedLine);
 
         if (numbersMatch && hasMonetaryValue) {
           const numbers = numbersMatch.map(n => parseFloat(n.replace(',', '.')));
@@ -380,20 +382,19 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageData.data;
 
-        // Seuil de Noir et Blanc (Binarization)
         for (let i = 0; i < data.length; i += 4) {
           const r = data[i];
           const g = data[i + 1];
           const b = data[i + 2];
-          // Luminance
+          // Luminance (Grayscale)
           let gray = 0.299 * r + 0.587 * g + 0.114 * b;
           
-          // Contraste élevé
-          const contrast = 1.5; 
+          // Contraste modéré (évite de détruire les points et virgules)
+          const contrast = 1.2; 
           gray = (gray - 128) * contrast + 128;
           
-          // Seuillage N&B (Noir pur ou Blanc pur)
-          gray = gray < 140 ? 0 : 255;
+          // On évite le seuillage dur (Thresholding) pour laisser Tesseract faire son propre calcul Otsu
+          gray = Math.min(255, Math.max(0, gray));
 
           data[i] = gray;
           data[i + 1] = gray;
