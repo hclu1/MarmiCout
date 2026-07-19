@@ -70,6 +70,8 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
     const text = rawText.replace(/\u00A0/g, ' ').replace(/[ \t]+/g, ' ');
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
     const items: { name: string; qty: number; unitPrice: number; unit: string }[] = [];
+    console.groupCollapsed('--- DÉBUG SCANNER FACTURE ---');
+    console.log('Texte brut reçu:\n', text);
     let storeName = stores[0]?.name || "Fournisseur Inconnu";
     let date = new Date().toISOString().split('T')[0];
 
@@ -152,7 +154,11 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
     const supermarketQtyRegex = /^(?:[A-Za-z*0-9#]\s*)?(\d+(?:[.,]\d+)?)\s*[xX*]\s+([a-zA-ZÀ-ÿ0-9\s'\-#&/%.,*]+?)\s+(\d+[.,]\d{2})(?:\s*(?:EUR|€|E))?\s+(\d+[.,]\d{2})(?:\s*(?:EUR|€|E))?\s*[^0-9]*$/i;
 
     lines.forEach((line, index) => {
-      if (isExcludedLine(line)) return;
+      console.log(`\n[Ligne ${index + 1}] "${line}"`);
+      if (isExcludedLine(line)) {
+        console.log(`  -> ❌ Ignorée (mot clé exclu ou ligne non valide)`);
+        return;
+      }
 
       let matched = false;
 
@@ -166,6 +172,9 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
         if (isPlausibleItem(name, qty, unitPrice)) {
           items.push({ name, qty, unitPrice, unit });
           matched = true;
+          console.log(`  -> ✅ Match Format A (Fournisseur): Produit="${name}", Qte=${qty}, PrixU=${unitPrice}€`);
+        } else {
+          console.log(`  -> ❌ Format A détecté mais valeurs invalides (Nom="${name}", Qte=${qty}, PrixU=${unitPrice})`);
         }
       }
 
@@ -181,6 +190,9 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
           if (isPlausibleItem(name, qty, unitPrice)) {
             items.push({ name, qty, unitPrice, unit });
             matched = true;
+            console.log(`  -> ✅ Match Format B (Prix Total Uniquement): Produit="${name}", Qte=${qty}, PrixU=${unitPrice}€`);
+          } else {
+            console.log(`  -> ❌ Format B détecté mais valeurs invalides (Nom="${name}", Qte=${qty}, PrixU=${unitPrice})`);
           }
         }
       }
@@ -194,6 +206,9 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
           if (isPlausibleItem(name, qty, unitPrice)) {
             items.push({ name, qty, unitPrice, unit: 'pièce' });
             matched = true;
+            console.log(`  -> ✅ Match Format Supermarché: Produit="${name}", Qte=${qty}, PrixU=${unitPrice}€`);
+          } else {
+            console.log(`  -> ❌ Format Supermarché détecté mais valeurs invalides (Nom="${name}", Qte=${qty}, PrixU=${unitPrice})`);
           }
         }
       }
@@ -269,16 +284,26 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
             }
             if (!foundName) {
               namePart = 'Produit inconnu (à renommer)';
+              console.log(`  -> ⚠️ Nom introuvable, utilisation de "Produit inconnu"`);
+            } else {
+              console.log(`  -> ⚠️ Nom récupéré sur la ligne précédente: "${namePart}"`);
             }
           }
 
           if (isPlausibleItem(namePart, finalQty, finalUnitPrice)) {
             items.push({ name: namePart, qty: finalQty, unitPrice: finalUnitPrice, unit });
+            console.log(`  -> ✅ Match Algorithme Mathématique: Produit="${namePart}", Qte=${finalQty}, PrixU=${finalUnitPrice}€`);
+          } else {
+            console.log(`  -> ❌ Match Mathématique rejeté car invraisemblable (Nom="${namePart}", Qte=${finalQty}, PrixU=${finalUnitPrice})`);
           }
+        } else {
+          console.log(`  -> ❌ Aucun algorithme n'a pu extraire d'informations de cette ligne.`);
         }
       }
     });
 
+    console.log('Total articles extraits:', items.length);
+    console.groupEnd();
     return { storeName, date, items };
   };
 
