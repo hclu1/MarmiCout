@@ -112,7 +112,10 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
     // ou lignes quasi entièrement numériques (SIRET, téléphone, IBAN, code postal...)
     const isExcludedLine = (line: string): boolean => {
       const lower = line.toLowerCase();
-      if (EXCLUDE_KEYWORDS.some(k => lower.includes(k))) return true;
+      // On utilise \b pour rechercher des mots entiers, afin d'éviter que "HARIBO" soit exclu à cause de "rib"
+      if (EXCLUDE_KEYWORDS.some(k => new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(lower))) {
+        return true;
+      }
       const compact = line.replace(/\s/g, '');
       const digitsOnly = compact.replace(/[^0-9]/g, '');
       if (digitsOnly.length >= 8 && digitsOnly.length / compact.length > 0.6) return true;
@@ -215,8 +218,11 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
 
       if (!matched) {
         // Algorithme de secours Mathématique (si les regex échouent)
-        // Astuce : si l'OCR a perdu la virgule des centimes (ex: "3 99"), on la recrée
-        const patchedLine = line.replace(/(\d+)\s(\d{2})(?!\d)/g, '$1.$2');
+        // Astuces de réparation OCR :
+        // 1. Recréer la virgule si perdue (ex: "3 99" -> "3.99")
+        // 2. Supprimer les espaces accidentels après la virgule (ex: "0, 75" -> "0.75")
+        let patchedLine = line.replace(/(\d+)\s(\d{2})(?!\d)/g, '$1.$2');
+        patchedLine = patchedLine.replace(/(\d+)[.,]\s+(\d{1,2})(?!\d)/g, '$1.$2');
         const cleanedForMath = patchedLine.replace(/[€$]|EUR/gi, '');
         const numbersMatch = cleanedForMath.match(/\d+(?:[.,]\d+)?/g);
         const hasMonetaryValue = /\d+[.,]\d{1,2}(?!\d)/.test(patchedLine);
