@@ -484,14 +484,11 @@ textarea.form-input {
     right: 0;
     top: 0;
     bottom: 0;
-    width: 460px;
-    max-width: 90vw;
+    width: 80vw !important;
+    max-width: 1200px !important;
     border-top-left-radius: var(--radius-lg);
     border-bottom-left-radius: var(--radius-lg);
     transform: translateX(100%);
-  }
-  .drawer.drawer-wide {
-    width: 850px;
   }
   .drawer.open {
     transform: translateX(0);
