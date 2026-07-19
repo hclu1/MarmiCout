@@ -24,11 +24,19 @@ export const Drawer: React.FC<DrawerProps> = ({ title, isOpen, onClose, children
     };
   }, [isOpen]);
 
+  const [isDesktop, setIsDesktop] = React.useState(typeof window !== 'undefined' ? window.innerWidth >= 769 : true);
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 769);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   if (!isOpen) return null;
 
   // Calcul dynamique du style en fonction des props
   const customStyle: React.CSSProperties = {
-    ...(zIndex ? { zIndex } : {})
+    ...(zIndex ? { zIndex } : {}),
+    ...(width && isDesktop ? { width, maxWidth: '95vw' } : {})
   };
 
   return (
