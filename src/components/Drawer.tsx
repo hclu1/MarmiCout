@@ -8,9 +8,10 @@ interface DrawerProps {
   children: React.ReactNode;
   footer?: React.ReactNode;
   zIndex?: number;
+  width?: string;
 }
 
-export const Drawer: React.FC<DrawerProps> = ({ title, isOpen, onClose, children, footer, zIndex }) => {
+export const Drawer: React.FC<DrawerProps> = ({ title, isOpen, onClose, children, footer, zIndex, width }) => {
   // Désactiver le défilement du corps de la page quand le drawer est ouvert
   useEffect(() => {
     if (isOpen) {
@@ -25,6 +26,12 @@ export const Drawer: React.FC<DrawerProps> = ({ title, isOpen, onClose, children
 
   if (!isOpen) return null;
 
+  // Calcul dynamique du style en fonction des props
+  const customStyle: React.CSSProperties = {};
+  if (zIndex) customStyle.zIndex = zIndex;
+  // On applique la largeur personnalisée uniquement si on est pas sur mobile (largeur par défaut gérée en CSS)
+  if (width && window.innerWidth >= 769) customStyle.width = width;
+
   return (
     <>
       {/* Fond obscurci */}
@@ -37,7 +44,7 @@ export const Drawer: React.FC<DrawerProps> = ({ title, isOpen, onClose, children
       {/* Panneau coulissant */}
       <div 
         className={`drawer ${isOpen ? 'open' : ''}`} 
-        style={zIndex ? { zIndex } : undefined}
+        style={Object.keys(customStyle).length > 0 ? customStyle : undefined}
       >
         <div className="drawer-header">
           <h3 className="drawer-title">{title}</h3>

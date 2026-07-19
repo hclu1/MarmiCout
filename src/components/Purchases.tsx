@@ -581,6 +581,7 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
         title="Scanner et importer une facture"
         isOpen={isInvoiceScannerOpen}
         onClose={() => setIsInvoiceScannerOpen(false)}
+        width="850px"
       >
         <InvoiceScanner
           onClose={() => setIsInvoiceScannerOpen(false)}
