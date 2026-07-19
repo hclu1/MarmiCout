@@ -10,7 +10,7 @@ export const Suggestions: React.FC = () => {
   const [sent, setSent] = useState(false);
 
   const testerCode = getActiveTesterCode() || 'Anonyme';
-  const recipientEmail = 'hchampag1@hotmail.fr';
+  const recipientEmail = 'contact.marmicout@gmail.com';
 
   const suggestionText = `💡 SUGGESTION MARMICOUT
 ---------------------------------------

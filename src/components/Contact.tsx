@@ -9,7 +9,7 @@ export const Contact: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const recipientEmail = 'hchampag1@hotmail.fr';
+  const recipientEmail = 'contact.marmicout@gmail.com';
 
   const contactText = `✉️ MESSAGE DE CONTACT MARMICOUT
 ---------------------------------------
