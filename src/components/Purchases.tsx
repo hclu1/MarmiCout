@@ -257,12 +257,10 @@ export const Purchases: React.FC<PurchasesProps> = ({ initialTriggerScan, initia
           <p className="page-subtitle">Enregistrez vos factures et réapprovisionnez votre stock</p>
         </div>
         <div className="actions-group">
-          {settings.mindeeApiKey && (
-            <button className="btn btn-secondary" onClick={() => { setIsMindeeScannerOpen(true); setIsInvoiceScannerOpen(true); }} style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}>
-              <FileText size={18} />
-              Scanner une facture avec IA
-            </button>
-          )}
+          <button className="btn btn-secondary" onClick={() => { setIsMindeeScannerOpen(true); setIsInvoiceScannerOpen(true); }} style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}>
+            <FileText size={18} />
+            Scanner une facture avec IA
+          </button>
           <button className="btn btn-secondary" onClick={() => { setIsMindeeScannerOpen(false); setIsInvoiceScannerOpen(true); }}>
             <FileText size={18} />
             Scanner une facture

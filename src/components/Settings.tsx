@@ -53,6 +53,7 @@ export const Settings: React.FC = () => {
     e.preventDefault();
     
     const updatedSettings: SettingsType = {
+      ...settings,
       businessName: businessName.trim(),
       currency: currency.trim(),
       defaultTargetMargin: Number(defaultMargin),
