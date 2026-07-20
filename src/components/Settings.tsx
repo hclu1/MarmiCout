@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { parseDecimalInput } from '../utils';
 import { 
   Settings as SettingsIcon, 
@@ -26,6 +26,7 @@ export const Settings: React.FC = () => {
   const [googleSheetId, setGoogleSheetId] = useState(settings.googleSheetId || '');
   const [googleSheetLink, setGoogleSheetLink] = useState(settings.googleSheetLink || '');
   const [googleWebAppUrl, setGoogleWebAppUrl] = useState(settings.googleWebAppUrl || '');
+  const [mindeeApiKey, setMindeeApiKey] = useState(settings.mindeeApiKey || '');
   
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
@@ -62,7 +63,8 @@ export const Settings: React.FC = () => {
       salesLocations: locationsText.split('\n').map(c => c.trim()).filter(c => c.length > 0),
       googleSheetId: googleSheetId.trim(),
       googleSheetLink: googleSheetLink.trim(),
-      googleWebAppUrl: googleWebAppUrl.trim()
+      googleWebAppUrl: googleWebAppUrl.trim(),
+      mindeeApiKey: mindeeApiKey.trim()
     };
 
     dbService.saveSettings(updatedSettings);
@@ -379,6 +381,21 @@ export const Settings: React.FC = () => {
               />
               <span style={{ fontSize: '11px', color: 'var(--color-dark-light)', marginTop: '4px', display: 'block' }}>
                 💡 Requis pour pouvoir pousser automatiquement vos données de MarmiCout vers votre Google Sheet.
+              </span>
+            </div>
+
+            <div className="form-group" style={{ marginTop: '16px', padding: '12px', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-primary-light)' }}>
+              <label className="form-label" style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>Clé API Mindee (Intelligence Artificielle Premium)</label>
+              <input
+                type="password"
+                className="form-input"
+                placeholder="Ex: md_3qHoBatlJzsWRDEM4wqgWUHFmUHhXo9qXV5ZnpRyhyg"
+                value={mindeeApiKey}
+                onChange={(e) => setMindeeApiKey(e.target.value)}
+                style={{ borderColor: 'var(--color-primary)', opacity: 0.9 }}
+              />
+              <span style={{ fontSize: '11px', color: 'var(--color-dark-light)', marginTop: '6px', display: 'block' }}>
+                💡 Nécessaire pour débloquer le bouton "Scanner une facture avec IA" (limité à 250 scans / mois gratuits via votre compte Mindee).
               </span>
             </div>
 

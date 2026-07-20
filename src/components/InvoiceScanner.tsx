@@ -15,9 +15,10 @@ interface InvoiceScannerProps {
   products: Product[];
   stores: Store[];
   settings: Settings;
+  useMindee?: boolean;
 }
 
-export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave, products, stores, settings }) => {
+export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave, products, stores, settings, useMindee = false }) => {
   const [step, setStep] = useState<'idle' | 'analyzing' | 'validating'>('idle');
   const [sourceImage, setSourceImage] = useState<string | null>(null);
   const [confidence, setConfidence] = useState(0);
@@ -420,6 +421,110 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
     });
   };
 
+  // Lecture avec l'API Premium Mindee
+  const analyzeImageWithMindee = async (file: File) => {
+    if (!settings.mindeeApiKey) {
+      alert("Clé API Mindee non configurée dans les paramètres.");
+      return;
+    }
+
+    const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM
+    let scansUsed = settings.mindeeMonthlyScans || 0;
+    const lastScanMonth = settings.mindeeLastScanMonth || '';
+
+    if (lastScanMonth !== currentMonth) {
+      scansUsed = 0;
+    }
+
+    if (scansUsed >= 250) {
+      alert(`Vous avez atteint votre quota gratuit de 250 scans ce mois-ci.\nVeuillez contacter le support pour passer à l'abonnement Premium (Logiciel complet + Scans IA en illimité).`);
+      setStep('idle');
+      return;
+    } else if (scansUsed >= 200) {
+      alert(`⚠️ Attention : Il ne vous reste plus que ${250 - scansUsed} scans gratuits ce mois-ci.`);
+    }
+
+    setStep('analyzing');
+    setConfidence(50);
+
+    try {
+      // Afficher l'image source
+      const reader = new FileReader();
+      reader.onload = (e) => setSourceImage(e.target?.result as string);
+      reader.readAsDataURL(file);
+
+      const formData = new FormData();
+      formData.append("document", file);
+
+      // On utilise l'API Receipt v5 de Mindee (fonctionne très bien pour les tickets et factures simples)
+      const response = await fetch("https://api.mindee.net/v1/products/mindee/expense_receipts/v5/predict", {
+        method: "POST",
+        headers: {
+          "Authorization": `Token ${settings.mindeeApiKey}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erreur HTTP: ${response.status}`);
+      }
+
+      const json = await response.json();
+      const prediction = json.document.inference.prediction;
+
+      const extractedStore = prediction.supplier_name?.value || '';
+      const extractedDate = prediction.date?.value || new Date().toISOString().split('T')[0];
+      
+      const mappedItems = [];
+      const lineItems = prediction.line_items || [];
+      
+      for (const item of lineItems) {
+        if (!item.description) continue;
+        
+        const qty = item.quantity || 1;
+        const total = item.total_amount || 0;
+        let unitPrice = item.unit_price;
+        
+        if (!unitPrice && total > 0) {
+          unitPrice = total / qty;
+        }
+        
+        if (total === 0 && !unitPrice) continue;
+
+        mappedItems.push({
+          name: item.description,
+          qty: qty,
+          unitPrice: Number((unitPrice || 0).toFixed(2)),
+          unit: 'pièce', // Par défaut
+          productId: autoMapProduct(item.description)
+        });
+      }
+
+      // Sauvegarde du quota
+      dbService.saveSettings({
+        ...settings,
+        mindeeMonthlyScans: scansUsed + 1,
+        mindeeLastScanMonth: currentMonth
+      });
+
+      setInvoiceStoreId(stores.find(s => s.name.toLowerCase().includes(extractedStore.toLowerCase()))?.id || stores[0]?.id || '');
+      setInvoiceDate(extractedDate);
+      
+      if (mappedItems.length === 0) {
+        alert("Mindee n'a trouvé aucune ligne d'article sur ce document.");
+      }
+      
+      setExtractedItems(mappedItems);
+      setStep('validating');
+      setConfidence(100);
+
+    } catch (err) {
+      console.error('Erreur Mindee', err);
+      alert("La lecture avec Mindee a échoué. Vérifiez votre clé API et votre connexion internet.");
+      setStep('idle');
+    }
+  };
+
   // Lecture réelle d'une photo de facture par OCR
   const analyzeImage = async (file: File) => {
     setStep('analyzing');
@@ -500,9 +605,17 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
       };
       reader.readAsText(file);
     } else if (fileName.endsWith('.pdf') || file.type === 'application/pdf') {
-      void analyzePdf(file);
+      if (useMindee) {
+        void analyzeImageWithMindee(file); // Mindee supporte les PDFs natifs
+      } else {
+        void analyzePdf(file);
+      }
     } else if (file.type.startsWith('image/')) {
-      void analyzeImage(file);
+      if (useMindee) {
+        void analyzeImageWithMindee(file);
+      } else {
+        void analyzeImage(file);
+      }
     } else {
       alert("Format de fichier non supporté. Veuillez importer une image, un fichier PDF ou un fichier texte (.txt).");
     }

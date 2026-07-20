@@ -122,4 +122,7 @@ export interface Settings {
   googleSheetId?: string;
   googleSheetLink?: string;
   googleWebAppUrl?: string;
+  mindeeApiKey?: string;
+  mindeeMonthlyScans?: number;
+  mindeeLastScanMonth?: string; // Format YYYY-MM
 }
