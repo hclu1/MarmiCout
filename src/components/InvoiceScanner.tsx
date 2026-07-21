@@ -219,19 +219,33 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
 
       if (!matched) {
         // Format C (très permissif, idéal pour OCR capricieux comme Auchan)
-        // Gère les tirets, étoiles au début, espaces dans les prix (0, 75), et prix/kg lu comme quantité
-        const veryPermissive = /^[*X]?\s*([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ0-9\s'\.\-]{2,40}?)(?:\s+\d+[.,]\d{2})?\s+[\.]*\s*(\d+)\s*[.,]\s*(\d{2})\s*(?:€|\$|EUR)?$/i;
+        // Gère les tirets, étoiles au début, espaces dans les prix (0, 75)
+        const veryPermissive = /^[*X]?\s*([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ0-9\s'\.\-]{2,40}?)(?:\s+([\d.,*X\s]+))?\s+[\.]*\s*(\d+)\s*[.,]\s*(\d{2})\s*(?:€|\$|EUR)?$/i;
         const matchPermissive = line.match(veryPermissive);
         if (matchPermissive) {
           let name = matchPermissive[1].trim();
+          let middlePart = matchPermissive[2] ? matchPermissive[2].trim() : '';
+          let qty = 1;
+          const total = parseFloat(`${matchPermissive[3]}.${matchPermissive[4]}`);
+
+          // Si le texte du milieu ressemble à une quantité et un prix unitaire collés (ex: "29,55" ou "2 *2.35")
+          if (middlePart) {
+             const qtyMatch = middlePart.match(/^(\d+)/);
+             if (qtyMatch) {
+                const possibleQty = parseInt(qtyMatch[1], 10);
+                if (possibleQty > 1 && possibleQty < 100) {
+                   qty = possibleQty;
+                }
+             }
+          }
+
           // Nettoyage des petites erreurs OCR à la fin du nom
           name = name.replace(/ Ho\.$/, '').replace(/ SE\.$/, '').replace(/ NUL\.$/, '').trim();
-          const qty = 1;
-          const total = parseFloat(`${matchPermissive[2]}.${matchPermissive[3]}`);
+          
           if (isPlausibleItem(name, qty, total)) {
-            items.push({ name, qty, unitPrice: total, unit: 'pièce' });
+            items.push({ name, qty, unitPrice: Number((total/qty).toFixed(2)), unit: 'pièce' });
             matched = true;
-            console.log(`  -> ✅ Match Format C (Permissif): Produit="${name}", Qte=${qty}, PrixTotal=${total}€`);
+            console.log(`  -> ✅ Match Format C (Permissif Auchan): Produit="${name}", Qte=${qty}, PrixTotal=${total}€`);
           }
         }
       }
