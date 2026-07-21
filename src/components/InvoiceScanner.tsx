@@ -218,6 +218,25 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
       }
 
       if (!matched) {
+        // Format C (très permissif, idéal pour OCR capricieux comme Auchan)
+        // Gère les tirets, étoiles au début, espaces dans les prix (0, 75), et prix/kg lu comme quantité
+        const veryPermissive = /^[*X]?\s*([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ0-9\s'\.\-]{2,40}?)(?:\s+\d+[.,]\d{2})?\s+[\.]*\s*(\d+)\s*[.,]\s*(\d{2})\s*(?:€|\$|EUR)?$/i;
+        const matchPermissive = line.match(veryPermissive);
+        if (matchPermissive) {
+          let name = matchPermissive[1].trim();
+          // Nettoyage des petites erreurs OCR à la fin du nom
+          name = name.replace(/ Ho\.$/, '').replace(/ SE\.$/, '').replace(/ NUL\.$/, '').trim();
+          const qty = 1;
+          const total = parseFloat(`${matchPermissive[2]}.${matchPermissive[3]}`);
+          if (isPlausibleItem(name, qty, total)) {
+            items.push({ name, qty, unitPrice: total, unit: 'pièce' });
+            matched = true;
+            console.log(`  -> ✅ Match Format C (Permissif): Produit="${name}", Qte=${qty}, PrixTotal=${total}€`);
+          }
+        }
+      }
+
+      if (!matched) {
         // Algorithme de secours Mathématique (si les regex échouent)
         // Astuces de réparation OCR :
         // 1. Recréer la virgule si perdue (ex: "3 99" -> "3.99")
@@ -461,11 +480,9 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
 
       const formData = new FormData();
       formData.append("document", file);
-      // Pour l'API V2 asynchrone (Mindee custom models), le modèle ID est passé dans le body.
-      formData.append("model_id", settings.mindeeModelId);
 
-      console.log("Envoi de l'image à Mindee V2 (asynchrone)...");
-      const enqueueResponse = await fetch("https://api-v2.mindee.net/v2/inferences/enqueue", {
+      // On utilise l'API Receipt officielle de Mindee (qui autorise les requêtes depuis un navigateur, contrairement aux modèles personnalisés V2)
+      const response = await fetch("https://api.mindee.net/v1/products/mindee/expense_receipts/v5/predict", {
         method: "POST",
         headers: {
           "Authorization": `Token ${settings.mindeeApiKey}`
@@ -473,55 +490,12 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
         body: formData
       });
 
-      if (!enqueueResponse.ok) {
-        throw new Error(`Erreur HTTP à l'envoi: ${enqueueResponse.status}`);
+      if (!response.ok) {
+        throw new Error(`Erreur HTTP: ${response.status}`);
       }
 
-      const enqueueJson = await enqueueResponse.json();
-      if (!enqueueJson.job || !enqueueJson.job.polling_url) {
-        throw new Error("Format de réponse Mindee V2 inattendu.");
-      }
-
-      const pollingUrl = enqueueJson.job.polling_url;
-      console.log(`Document mis en file d'attente. Polling sur: ${pollingUrl}`);
-      
-      let prediction = null;
-      let attempts = 0;
-
-      // Boucle de polling (toutes les 2 secondes, max 15 essais)
-      while (attempts < 15) {
-        await new Promise(r => setTimeout(r, 2000));
-        attempts++;
-        
-        const pollResponse = await fetch(pollingUrl, {
-          method: "GET",
-          headers: {
-            "Authorization": `Token ${settings.mindeeApiKey}`
-          }
-        });
-
-        if (!pollResponse.ok) {
-          throw new Error(`Erreur HTTP au polling: ${pollResponse.status}`);
-        }
-
-        const pollJson = await pollResponse.json();
-        
-        if (pollJson.job && pollJson.job.status === "completed") {
-           // Document analysé !
-           // La prédiction peut se trouver dans pollJson.inference.prediction ou pollJson.document.inference.prediction
-           prediction = (pollJson.inference && pollJson.inference.prediction) || 
-                        (pollJson.document && pollJson.document.inference && pollJson.document.inference.prediction);
-           break;
-        } else if (pollJson.job && pollJson.job.status === "failed") {
-           throw new Error("Mindee a échoué à traiter ce document.");
-        }
-        
-        // Continuer la boucle si "processing"
-      }
-
-      if (!prediction) {
-        throw new Error("Délai d'attente dépassé ou structure JSON inattendue.");
-      }
+      const json = await response.json();
+      const prediction = json.document.inference.prediction;
 
       const extractedStore = prediction.supplier_name?.value || '';
       const extractedDate = prediction.date?.value || new Date().toISOString().split('T')[0];
