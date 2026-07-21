@@ -428,6 +428,11 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
       return;
     }
 
+    if (!settings.mindeeModelId) {
+      alert("ID du Modèle Mindee manquant. Veuillez le configurer dans les paramètres pour utiliser l'IA.");
+      return;
+    }
+
     const currentMonth = new Date().toISOString().substring(0, 7); // YYYY-MM
     let scansUsed = settings.mindeeMonthlyScans || 0;
     const lastScanMonth = settings.mindeeLastScanMonth || '';
@@ -441,11 +446,12 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
       setStep('idle');
       return;
     } else if (scansUsed >= 200) {
-      alert(`⚠️ Attention : Il ne vous reste plus que ${250 - scansUsed} scans gratuits ce mois-ci.`);
+      // Affichage silencieux du quota restant
+      console.log(`Attention, il vous reste ${250 - scansUsed} scans gratuits ce mois-ci.`);
     }
 
     setStep('analyzing');
-    setConfidence(50);
+    setConfidence(0);
 
     try {
       // Afficher l'image source
@@ -455,9 +461,11 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
 
       const formData = new FormData();
       formData.append("document", file);
+      // Pour l'API V2 asynchrone (Mindee custom models), le modèle ID est passé dans le body.
+      formData.append("model_id", settings.mindeeModelId);
 
-      // On utilise l'API Receipt v5 de Mindee (fonctionne très bien pour les tickets et factures simples)
-      const response = await fetch("https://api.mindee.net/v1/products/mindee/expense_receipts/v5/predict", {
+      console.log("Envoi de l'image à Mindee V2 (asynchrone)...");
+      const enqueueResponse = await fetch("https://api-v2.mindee.net/v2/inferences/enqueue", {
         method: "POST",
         headers: {
           "Authorization": `Token ${settings.mindeeApiKey}`
@@ -465,12 +473,55 @@ export const InvoiceScanner: React.FC<InvoiceScannerProps> = ({ onClose, onSave,
         body: formData
       });
 
-      if (!response.ok) {
-        throw new Error(`Erreur HTTP: ${response.status}`);
+      if (!enqueueResponse.ok) {
+        throw new Error(`Erreur HTTP à l'envoi: ${enqueueResponse.status}`);
       }
 
-      const json = await response.json();
-      const prediction = json.document.inference.prediction;
+      const enqueueJson = await enqueueResponse.json();
+      if (!enqueueJson.job || !enqueueJson.job.polling_url) {
+        throw new Error("Format de réponse Mindee V2 inattendu.");
+      }
+
+      const pollingUrl = enqueueJson.job.polling_url;
+      console.log(`Document mis en file d'attente. Polling sur: ${pollingUrl}`);
+      
+      let prediction = null;
+      let attempts = 0;
+
+      // Boucle de polling (toutes les 2 secondes, max 15 essais)
+      while (attempts < 15) {
+        await new Promise(r => setTimeout(r, 2000));
+        attempts++;
+        
+        const pollResponse = await fetch(pollingUrl, {
+          method: "GET",
+          headers: {
+            "Authorization": `Token ${settings.mindeeApiKey}`
+          }
+        });
+
+        if (!pollResponse.ok) {
+          throw new Error(`Erreur HTTP au polling: ${pollResponse.status}`);
+        }
+
+        const pollJson = await pollResponse.json();
+        
+        if (pollJson.job && pollJson.job.status === "completed") {
+           // Document analysé !
+           // La prédiction peut se trouver dans pollJson.inference.prediction ou pollJson.document.inference.prediction
+           prediction = (pollJson.inference && pollJson.inference.prediction) || 
+                        (pollJson.document && pollJson.document.inference && pollJson.document.inference.prediction);
+           break;
+        } else if (pollJson.job && pollJson.job.status === "failed") {
+           throw new Error("Mindee a échoué à traiter ce document.");
+        }
+        
+        // Continuer la boucle si "processing"
+      }
+
+      if (!prediction) {
+        throw new Error("Délai d'attente dépassé ou structure JSON inattendue.");
+      }
 
       const extractedStore = prediction.supplier_name?.value || '';
       const extractedDate = prediction.date?.value || new Date().toISOString().split('T')[0];

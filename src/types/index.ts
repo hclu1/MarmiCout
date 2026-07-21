@@ -123,6 +123,7 @@ export interface Settings {
   googleSheetLink?: string;
   googleWebAppUrl?: string;
   mindeeApiKey?: string;
+  mindeeModelId?: string;
   mindeeMonthlyScans?: number;
   mindeeLastScanMonth?: string; // Format YYYY-MM
 }

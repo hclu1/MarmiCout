@@ -27,6 +27,7 @@ export const Settings: React.FC = () => {
   const [googleSheetLink, setGoogleSheetLink] = useState(settings.googleSheetLink || '');
   const [googleWebAppUrl, setGoogleWebAppUrl] = useState(settings.googleWebAppUrl || '');
   const [mindeeApiKey, setMindeeApiKey] = useState(settings.mindeeApiKey || '');
+  const [mindeeModelId, setMindeeModelId] = useState(settings.mindeeModelId || '');
   
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
@@ -65,7 +66,8 @@ export const Settings: React.FC = () => {
       googleSheetId: googleSheetId.trim(),
       googleSheetLink: googleSheetLink.trim(),
       googleWebAppUrl: googleWebAppUrl.trim(),
-      mindeeApiKey: mindeeApiKey.trim()
+      mindeeApiKey: mindeeApiKey.trim(),
+      mindeeModelId: mindeeModelId.trim()
     };
 
     dbService.saveSettings(updatedSettings);
@@ -397,6 +399,21 @@ export const Settings: React.FC = () => {
               />
               <span style={{ fontSize: '11px', color: 'var(--color-dark-light)', marginTop: '6px', display: 'block' }}>
                 💡 Nécessaire pour débloquer le bouton "Scanner une facture avec IA" (limité à 250 scans / mois gratuits via votre compte Mindee).
+              </span>
+            </div>
+
+            <div className="form-group" style={{ marginTop: '10px', padding: '12px', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-primary-light)' }}>
+              <label className="form-label" style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>ID du Modèle Mindee (V2)</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Ex: 55ece2b2-9027-405c-8e4b-19dae0be801e"
+                value={mindeeModelId}
+                onChange={(e) => setMindeeModelId(e.target.value)}
+                style={{ borderColor: 'var(--color-primary)', opacity: 0.9 }}
+              />
+              <span style={{ fontSize: '11px', color: 'var(--color-dark-light)', marginTop: '6px', display: 'block' }}>
+                💡 Renseignez ici l'ID de votre modèle Mindee personnalisé (ex: Receipt) pour utiliser l'API asynchrone V2.
               </span>
             </div>
 
